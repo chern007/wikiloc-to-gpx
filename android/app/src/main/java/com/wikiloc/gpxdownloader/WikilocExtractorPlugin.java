@@ -26,6 +26,41 @@ public class WikilocExtractorPlugin extends Plugin {
     private Dialog activeDialog = null;
     private WebView activeWebView = null;
 
+    public static class JSBridge {
+        private final PluginCall call;
+        private final AtomicBoolean isDone;
+        private final Dialog dialog;
+
+        public JSBridge(PluginCall call, AtomicBoolean isDone, Dialog dialog) {
+            this.call = call;
+            this.isDone = isDone;
+            this.dialog = dialog;
+        }
+
+        @JavascriptInterface
+        public void onTrailExtracted(String json) {
+            if (isDone.getAndSet(true)) return;
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (dialog != null && dialog.isShowing()) {
+                    dialog.dismiss();
+                }
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                ret.put("data", json);
+                call.resolve(ret);
+            });
+        }
+
+        @JavascriptInterface
+        public void onChallengeDetected() {
+            new Handler(Looper.getMainLooper()).post(() -> {
+                if (dialog != null && !dialog.isShowing()) {
+                    dialog.show();
+                }
+            });
+        }
+    }
+
     @PluginMethod
     public void extract(PluginCall call) {
         String url = call.getString("url");
@@ -79,34 +114,7 @@ public class WikilocExtractorPlugin extends Plugin {
         cookieManager.setAcceptCookie(true);
         cookieManager.setAcceptThirdPartyCookies(activeWebView, true);
 
-        // Native JavaScript bridge to capture mapData
-        class JSBridge {
-            @JavascriptInterface
-            public void onTrailExtracted(String json) {
-                if (isDone.getAndSet(true)) return;
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    if (activeDialog != null && activeDialog.isShowing()) {
-                        activeDialog.dismiss();
-                    }
-                    JSObject ret = new JSObject();
-                    ret.put("success", true);
-                    ret.put("data", json);
-                    call.resolve(ret);
-                });
-            }
-
-            @JavascriptInterface
-            public void onChallengeDetected() {
-                // If Cloudflare challenge detected, ensure dialog is visible so user can tap captcha
-                new Handler(Looper.getMainLooper()).post(() -> {
-                    if (activeDialog != null && !activeDialog.isShowing()) {
-                        activeDialog.show();
-                    }
-                });
-            }
-        }
-
-        JSBridge bridge = new JSBridge();
+        JSBridge bridge = new JSBridge(call, isDone, activeDialog);
         activeWebView.addJavascriptInterface(bridge, "WikilocAndroidBridge");
 
         activeWebView.setWebViewClient(new WebViewClient() {
