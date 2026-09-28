@@ -38,8 +38,8 @@ jobs:
       - name: Build web application
         run: npm run build
 
-      - name: Sync Capacitor Android
-        run: npx cap sync android
+      - name: Copy web assets to Android
+        run: npx cap copy android
 
       - name: Make Gradlew executable
         run: chmod +x ./android/gradlew
