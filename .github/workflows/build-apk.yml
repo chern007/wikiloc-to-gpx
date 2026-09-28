@@ -50,7 +50,11 @@ jobs:
       - name: Build Debug APK
         run: |
           cd android
-          ./gradlew assembleDebug --stacktrace
+          ./gradlew assembleDebug --stacktrace 2>&1 | tee ../gradle-build.log || {
+            echo "================ GRADLE BUILD FAILED ================"
+            tail -n 120 ../gradle-build.log
+            exit 1
+          }
 
       - name: Prepare APK artifact
         run: |
