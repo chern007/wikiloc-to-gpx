@@ -49,19 +49,22 @@ jobs:
 
       - name: Build Debug APK
         run: |
+          set -e
           cd android
-          ./gradlew assembleDebug --stacktrace 2>&1 | tee ../gradle-build.log || {
-            echo "================ GRADLE BUILD FAILED ================"
-            tail -n 120 ../gradle-build.log
-            exit 1
-          }
+          ./gradlew assembleDebug --stacktrace
 
       - name: Prepare APK artifact
         run: |
           mkdir -p build-output
-          APK_FILE=$(find android -name "*.apk" | head -n 1)
+          APK_FILE=$(find android -name "*debug.apk" | head -n 1)
+          if [ -z "$APK_FILE" ]; then
+            echo "ERROR: No APK found in android directory!"
+            find android -name "*.apk"
+            exit 1
+          fi
           echo "Found APK at: $APK_FILE"
           cp "$APK_FILE" build-output/wikiloc-to-gpx.apk
+          ls -lh build-output/wikiloc-to-gpx.apk
 
       - name: Upload APK Artifact
         uses: actions/upload-artifact@v4
