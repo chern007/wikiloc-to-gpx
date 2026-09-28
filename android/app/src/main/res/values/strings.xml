@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Wikiloc GPX</string>
+    <string name="title_activity_main">Wikiloc GPX</string>
+    <string name="package_name">com.wikiloc.gpxdownloader</string>
+    <string name="custom_url_scheme">com.wikiloc.gpxdownloader</string>
+</resources>

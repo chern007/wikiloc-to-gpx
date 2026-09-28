@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>Wikiloc a GPX | Descarga de Rutas y Waypoints</title>
+  <meta name="description" content="Descarga rutas de senderismo y montaña de Wikiloc a formato GPX con track 3D y waypoints para Garmin, Suunto y GPS." />
+  <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+  <link rel="stylesheet" href="/src/style.css" />
+</head>
+<body>
+  <div class="app-container">
+    <!-- Navbar Header -->
+    <header class="app-header">
+      <a href="#" class="logo-wrap">
+        <div class="logo-icon">🌿</div>
+        <span class="logo-text">Wikiloc GPX</span>
+        <span class="logo-badge">Pro</span>
+      </a>
+      <div class="header-actions">
+        <button id="btnOpenPasteModal" class="btn-header-ghost" title="Pegar código HTML">
+          <span>📋</span> Pegar HTML
+        </button>
+      </div>
+    </header>
+
+    <!-- Hero Card with Nature Background -->
+    <section class="hero-card">
+      <img src="/hero_nature_trail.jpg" alt="Montaña y senderos" class="hero-bg-img" />
+      <div class="hero-overlay"></div>
+      <div class="hero-content">
+        <div class="hero-pill-badge">
+          <span>🏔️</span> Rutas y POIs sin restricciones
+        </div>
+        <h1 class="hero-title">Descarga Rutas de Wikiloc a GPX</h1>
+        <p class="hero-subtitle">
+          Convierte cualquier ruta en un archivo GPX 1.1 estándar con trazado 3D, altitudes y todos los puntos de interés para tu Garmin, reloj o GPS.
+        </p>
+      </div>
+    </section>
+
+    <!-- Floating Search Pill (Directly inspired by Reference Design) -->
+    <div class="search-pill-container">
+      <form id="urlForm" class="search-pill-inner" onsubmit="event.preventDefault();">
+        <span class="search-input-icon">🔗</span>
+        <input
+          type="url"
+          id="wikilocUrlInput"
+          class="search-input"
+          placeholder="Pega la URL de la ruta (ej. https://es.wikiloc.com/...)"
+          autocomplete="off"
+          required
+        />
+        <button type="button" id="btnClipboardPaste" class="btn-paste" title="Pegar del portapapeles">
+          Pegar
+        </button>
+        <button type="submit" id="btnSubmitExtract" class="btn-extract">
+          <span>⚡</span> Obtener GPX
+        </button>
+      </form>
+    </div>
+
+    <!-- Quick Options -->
+    <div class="quick-options">
+      <button type="button" id="btnDemoJanela" class="chip-btn highlight">
+        <span>🌲</span> Probar con: Janela do Inferno (Azores)
+      </button>
+      <button type="button" id="btnManualHtml" class="chip-btn">
+        <span>📄</span> Modo manual (Pegar HTML)
+      </button>
+    </div>
+
+    <!-- Loading / Status indicator -->
+    <div id="statusIndicator" class="status-indicator">
+      <div class="spinner-wrap"></div>
+      <div id="statusMessage" class="status-text">Extrayendo datos de la ruta...</div>
+    </div>
+
+    <!-- Results Section -->
+    <main id="resultsSection" class="results-section">
+      <!-- Main Summary Card -->
+      <section class="route-main-card">
+        <div class="route-header-top">
+          <div>
+            <div id="routeActivityBadge" class="activity-badge">🌲 Senderismo</div>
+            <h2 id="routeTitle" class="route-title">Nombre de la Ruta</h2>
+            <div class="route-meta">
+              <span id="routeAuthor">por Autor</span>
+              <span>•</span>
+              <span id="routeLocation">Ubicación</span>
+            </div>
+          </div>
+          <div class="route-actions-bar">
+            <button id="btnDownloadGpx" class="btn-primary-action">
+              <span>📥</span> Descargar GPX
+            </button>
+            <button id="btnShareGpx" class="btn-secondary-action">
+              <span>📤</span> Compartir
+            </button>
+          </div>
+        </div>
+
+        <!-- Export options -->
+        <div class="export-options-row">
+          <label class="option-checkbox-label">
+            <input type="checkbox" id="chkIncludeWpts" checked />
+            <span id="labelWptsCount">Incluir puntos de interés (POIs)</span>
+          </label>
+          <label class="option-checkbox-label">
+            <input type="checkbox" id="chkIncludeEle" checked />
+            <span>Incluir datos de altitud (3D)</span>
+          </label>
+        </div>
+      </section>
+
+      <!-- Key Metrics Row -->
+      <section class="metrics-grid">
+        <div class="metric-card">
+          <div class="metric-icon-box">📏</div>
+          <div class="metric-info">
+            <span class="metric-label">Distancia</span>
+            <span id="metricDist" class="metric-val">0 km</span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon-box">📈</div>
+          <div class="metric-info">
+            <span class="metric-label">Desnivel +</span>
+            <span id="metricGain" class="metric-val">+0 m</span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon-box">⛰️</div>
+          <div class="metric-info">
+            <span class="metric-label">Cota Máxima</span>
+            <span id="metricMaxEle" class="metric-val">0 m</span>
+          </div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-icon-box">⏱️</div>
+          <div class="metric-info">
+            <span class="metric-label">Tiempo Est.</span>
+            <span id="metricTime" class="metric-val">--</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- Map & Elevation Card -->
+      <section class="map-card">
+        <div class="card-title-row">
+          <h3 class="section-h3">🗺️ Recorrido en el Mapa</h3>
+          <span id="trackpointsCounter" class="ele-stat-pill">791 puntos</span>
+        </div>
+        <div id="routeMap" class="map-container"></div>
+        <div id="elevationProfileContainer"></div>
+      </section>
+
+      <!-- POIs Section (Inspired by 3-column cards in reference image) -->
+      <section class="pois-section">
+        <div class="pois-header-row">
+          <h3 class="section-h3">📍 Puntos de Interés de la Ruta</h3>
+          <span id="poisCounterBadge" class="pois-badge">0 POIs</span>
+        </div>
+        <div id="poisCardsGrid" class="pois-cards-grid">
+          <!-- Dynamically populated POI cards -->
+        </div>
+      </section>
+    </main>
+
+    <!-- Paste HTML Modal Fallback -->
+    <div id="pasteModal" class="modal-backdrop">
+      <div class="modal-box">
+        <h3 class="modal-title">Pegar Código HTML</h3>
+        <p class="modal-desc">
+          Si la conexión directa a Wikiloc está protegida por Cloudflare, puedes abrir la ruta en tu navegador, pulsar <strong>Ver código fuente</strong> y pegar el contenido aquí:
+        </p>
+        <textarea
+          id="htmlTextarea"
+          class="modal-textarea"
+          placeholder="Pega aquí el código HTML completo de la página de Wikiloc..."
+        ></textarea>
+        <div class="modal-actions">
+          <button type="button" id="btnCloseModal" class="btn-secondary-action">Cancelar</button>
+          <button type="button" id="btnProcessHtml" class="btn-primary-action">Procesar HTML</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

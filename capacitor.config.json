@@ -1,0 +1,8 @@
+{
+  "appId": "com.wikiloc.gpxdownloader",
+  "appName": "Wikiloc GPX",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}
