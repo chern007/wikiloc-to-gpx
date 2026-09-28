@@ -1,8 +1,6 @@
 package com.wikiloc.gpxdownloader;
 
 import android.app.Dialog;
-import android.graphics.Color;
-import android.graphics.drawable.ColorDrawable;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.ViewGroup;
@@ -13,13 +11,14 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
-import android.widget.ProgressBar;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @CapacitorPlugin(name = "WikilocExtractor")
 public class WikilocExtractorPlugin extends Plugin {
@@ -45,6 +44,8 @@ public class WikilocExtractorPlugin extends Plugin {
     }
 
     private void startNativeExtraction(String url, PluginCall call) {
+        final AtomicBoolean isDone = new AtomicBoolean(false);
+
         // Dismiss previous dialog if any
         if (activeDialog != null && activeDialog.isShowing()) {
             activeDialog.dismiss();
@@ -80,12 +81,9 @@ public class WikilocExtractorPlugin extends Plugin {
 
         // Native JavaScript bridge to capture mapData
         class JSBridge {
-            private boolean resolved = false;
-
             @JavascriptInterface
             public void onTrailExtracted(String json) {
-                if (resolved) return;
-                resolved = true;
+                if (isDone.getAndSet(true)) return;
                 new Handler(Looper.getMainLooper()).post(() -> {
                     if (activeDialog != null && activeDialog.isShowing()) {
                         activeDialog.dismiss();
@@ -151,7 +149,7 @@ public class WikilocExtractorPlugin extends Plugin {
 
         // 35s timeout fallback
         new Handler(Looper.getMainLooper()).postDelayed(() -> {
-            if (!call.isKeptAlive()) return;
+            if (isDone.getAndSet(true)) return;
             if (activeDialog != null && activeDialog.isShowing()) {
                 activeDialog.dismiss();
             }
