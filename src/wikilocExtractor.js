@@ -129,10 +129,93 @@ export function normalizeWikilocUrl(input) {
 }
 
 /**
+ * Calculates elevation gain, max/min elevation, distance, and estimated hiking time from 3D coordinates [lon, lat, ele, time]
+ */
+export function computeMetricsFromCoordinates(coordinates) {
+  if (!coordinates || coordinates.length === 0) {
+    return {
+      distanceKm: 0,
+      elevationGainM: 0,
+      elevationLossM: 0,
+      maxElevationM: 0,
+      minElevationM: 0,
+      timeString: '--'
+    };
+  }
+
+  let totalDistanceKm = 0;
+  let elevationGainM = 0;
+  let elevationLossM = 0;
+  let minElevationM = Infinity;
+  let maxElevationM = -Infinity;
+  let hasElevations = false;
+  let prevEle = null;
+
+  function haversineDist(lat1, lon1, lat2, lon2) {
+    const R = 6371; // km
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
+  }
+
+  for (let i = 0; i < coordinates.length; i++) {
+    const pt = coordinates[i]; // [lon, lat, ele, time]
+    const lon = pt[0];
+    const lat = pt[1];
+    const ele = pt.length > 2 && pt[2] != null ? pt[2] : null;
+
+    if (i > 0) {
+      const prev = coordinates[i - 1];
+      totalDistanceKm += haversineDist(prev[1], prev[0], lat, lon);
+    }
+
+    if (ele != null && !isNaN(ele)) {
+      hasElevations = true;
+      if (ele < minElevationM) minElevationM = ele;
+      if (ele > maxElevationM) maxElevationM = ele;
+
+      if (prevEle != null) {
+        const diff = ele - prevEle;
+        // 0.8m threshold filters out GPS altitude jitter
+        if (diff > 0.8) elevationGainM += diff;
+        else if (diff < -0.8) elevationLossM += Math.abs(diff);
+      }
+      prevEle = ele;
+    }
+  }
+
+  // Calculate estimated hiking time (Naismith's rule: 4 km/h + 1h per 400m elevation gain)
+  let timeString = '--';
+  if (totalDistanceKm > 0) {
+    const hours = (totalDistanceKm / 4.0) + ((hasElevations ? elevationGainM : 0) / 400.0);
+    const totalMinutes = Math.round(hours * 60);
+    const h = Math.floor(totalMinutes / 60);
+    const m = totalMinutes % 60;
+    timeString = h > 0 ? `${h}h ${m}min` : `${m}min`;
+  }
+
+  return {
+    distanceKm: parseFloat(totalDistanceKm.toFixed(2)),
+    elevationGainM: hasElevations ? Math.round(elevationGainM) : 0,
+    elevationLossM: hasElevations ? Math.round(elevationLossM) : 0,
+    maxElevationM: hasElevations ? Math.round(maxElevationM) : 0,
+    minElevationM: hasElevations ? Math.round(minElevationM) : 0,
+    timeString
+  };
+}
+
+/**
  * Parses raw mapData JSON object (obtained directly from Android WebView or HTML)
  */
 export function parseMapDataObject(parsed, originalUrl = '') {
-  const rawTrail = parsed.mapData && parsed.mapData[0];
+  const mapDataList = Array.isArray(parsed.mapData)
+    ? parsed.mapData
+    : (parsed.mapData ? [parsed.mapData] : (Array.isArray(parsed) ? parsed : [parsed]));
+  const rawTrail = mapDataList[0] || {};
   if (!rawTrail || !rawTrail.geom) {
     throw new Error('La ruta no contiene polilínea geométrica.');
   }
@@ -148,19 +231,31 @@ export function parseMapDataObject(parsed, originalUrl = '') {
     photoUrl: (wp.photos && wp.photos[0] && wp.photos[0].url) ? wp.photos[0].url : null
   }));
 
+  const measures = parsed.measures || parsed.spaMeasures || {};
+  let distanceKm = measures.distance ? parseFloat(measures.distance) : null;
+  let elevationGainM = measures.uphill != null ? Math.round(measures.uphill) : null;
+  let elevationLossM = measures.downhill != null ? Math.round(measures.downhill) : null;
+  let maxElevationM = measures.elevationMax != null ? Math.round(measures.elevationMax) : null;
+  let minElevationM = measures.elevationMin != null ? Math.round(measures.elevationMin) : null;
+  let timeString = measures.time ? measures.time.trim() : '';
+
+  if (distanceKm == null && rawTrail.bsd) distanceKm = parseFloat((rawTrail.bsd / 1000).toFixed(2));
+  if (elevationGainM == null && rawTrail.bsu != null) elevationGainM = Math.round(rawTrail.bsu);
+  if (elevationLossM == null && rawTrail.bsd_down != null) elevationLossM = Math.round(rawTrail.bsd_down);
+
   return {
     id: String(rawTrail.spaId || ''),
     url: originalUrl || (rawTrail.prettyURL ? `https://es.wikiloc.com${rawTrail.prettyURL}` : ''),
-    name: rawTrail.nom || 'Ruta Wikiloc',
-    activity: 'Senderismo',
-    author: 'Wikiloc',
-    location: 'Localización de ruta',
-    distanceKm: 0,
-    elevationGainM: 0,
-    elevationLossM: 0,
-    maxElevationM: 0,
-    minElevationM: 0,
-    timeString: '',
+    name: rawTrail.nom || parsed.title || 'Ruta Wikiloc',
+    activity: parsed.activity || 'Senderismo',
+    author: parsed.author || 'Autor Wikiloc',
+    location: parsed.location || 'Localización de ruta',
+    distanceKm: distanceKm || 0,
+    elevationGainM: elevationGainM || 0,
+    elevationLossM: elevationLossM || 0,
+    maxElevationM: maxElevationM || 0,
+    minElevationM: minElevationM || 0,
+    timeString: timeString || '',
     isLoop: !!rawTrail.loop,
     geom: rawTrail.geom,
     waypoints

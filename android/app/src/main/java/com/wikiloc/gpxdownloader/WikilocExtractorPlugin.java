@@ -159,7 +159,20 @@ public class WikilocExtractorPlugin extends Plugin {
                     "       count++;" +
                     "       if (typeof window.mapData !== 'undefined' && window.mapData.mapData && window.mapData.mapData.length > 0) {" +
                     "           clearInterval(interval);" +
-                    "           window.WikilocAndroidBridge.onTrailExtracted(JSON.stringify(window.mapData));" +
+                    "           var measures = (typeof window.spaMeasures !== 'undefined') ? window.spaMeasures : null;" +
+                    "           var authorEl = document.querySelector('.trail-by-author, .author-name, [data-role=\"author-name\"]');" +
+                    "           var activityEl = document.querySelector('.trail-activity, .activity-name, .trail-activity-name');" +
+                    "           var locationEl = document.querySelector('.trail-near, .location-name');" +
+                    "           var payload = {" +
+                    "               mapData: window.mapData.mapData," +
+                    "               waypoints: window.mapData.waypoints || []," +
+                    "               measures: measures," +
+                    "               author: authorEl ? authorEl.innerText.replace(/^por\\s*/i, '').trim() : ''," +
+                    "               activity: activityEl ? activityEl.innerText.trim() : ''," +
+                    "               location: locationEl ? locationEl.innerText.replace(/^cerca de\\s*/i, '').trim() : ''," +
+                    "               title: document.title || ''" +
+                    "           };" +
+                    "           window.WikilocAndroidBridge.onTrailExtracted(JSON.stringify(payload));" +
                     "           return;" +
                     "       }" +
                     "       if (document.body && (document.body.innerText.indexOf('Cloudflare') !== -1 || document.body.innerText.indexOf('Just a moment') !== -1)) {" +

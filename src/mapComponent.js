@@ -96,8 +96,8 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
       }
     });
 
-    new MapActionsControl().addTo(currentMap);
     L.control.zoom({ position: 'bottomright' }).addTo(currentMap);
+    new MapActionsControl().addTo(currentMap);
     L.control.attribution({ position: 'bottomleft', prefix: false })
       .addAttribution('&copy; <a href="https://openstreetmap.org">OSM</a> | OpenTopoMap')
       .addTo(currentMap);

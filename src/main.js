@@ -1,6 +1,6 @@
 import './style.css';
 import { SAMPLE_ROUTE } from './sampleData.js';
-import { fetchAndExtractTrail, parseWikilocHtml } from './wikilocExtractor.js';
+import { fetchAndExtractTrail, parseWikilocHtml, computeMetricsFromCoordinates } from './wikilocExtractor.js';
 import { decodeTwkbBase64, buildGpxXml, downloadGpx, shareGpx } from './gpxExporter.js';
 import {
   renderRouteMap,
@@ -78,10 +78,17 @@ async function displayRoute(trailData) {
     routeAuthor.textContent = `por ${trailData.author || 'Usuario Wikiloc'}`;
     routeLocation.textContent = trailData.location || 'Localización no especificada';
 
-    metricDist.textContent = trailData.distanceKm ? `${trailData.distanceKm.toFixed(2)} km` : `${(currentCoordinates.length * 0.005).toFixed(1)} km`;
-    metricGain.textContent = trailData.elevationGainM ? `+${trailData.elevationGainM} m` : '+--';
-    metricMaxEle.textContent = trailData.maxElevationM ? `${trailData.maxElevationM} m` : '--';
-    metricTime.textContent = trailData.timeString || 'N/A';
+    // Calculate fallback metrics from coordinates if trailData metrics are missing/zero
+    const computed = computeMetricsFromCoordinates(currentCoordinates);
+    const dist = (trailData.distanceKm && trailData.distanceKm > 0) ? trailData.distanceKm : computed.distanceKm;
+    const gain = (trailData.elevationGainM && trailData.elevationGainM > 0) ? trailData.elevationGainM : computed.elevationGainM;
+    const maxEle = (trailData.maxElevationM && trailData.maxElevationM > 0) ? trailData.maxElevationM : computed.maxElevationM;
+    const timeStr = (trailData.timeString && trailData.timeString.trim().length > 0 && trailData.timeString !== 'N/A') ? trailData.timeString : computed.timeString;
+
+    metricDist.textContent = dist > 0 ? `${dist.toFixed(2)} km` : '--';
+    metricGain.textContent = gain > 0 ? `+${gain} m` : (gain === 0 ? '0 m' : '+--');
+    metricMaxEle.textContent = maxEle > 0 ? `${maxEle} m` : '--';
+    metricTime.textContent = timeStr || 'N/A';
 
     trackpointsCounter.textContent = `${currentCoordinates.length} puntos de track`;
     
