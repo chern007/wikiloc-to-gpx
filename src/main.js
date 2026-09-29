@@ -1,7 +1,7 @@
 import './style.css';
 import { Capacitor } from '@capacitor/core';
 import { SAMPLE_ROUTE } from './sampleData.js';
-import { fetchAndExtractTrail, parseWikilocHtml, computeMetricsFromCoordinates } from './wikilocExtractor.js';
+import { fetchAndExtractTrail, computeMetricsFromCoordinates } from './wikilocExtractor.js';
 import { decodeTwkbBase64, buildGpxXml, downloadGpx, shareGpx } from './gpxExporter.js';
 import {
   renderRouteMap,
@@ -20,8 +20,6 @@ let currentCoordinates = null;
 const urlForm = document.getElementById('urlForm');
 const wikilocUrlInput = document.getElementById('wikilocUrlInput');
 const btnClipboardPaste = document.getElementById('btnClipboardPaste');
-const btnManualHtml = document.getElementById('btnManualHtml');
-const btnOpenPasteModal = document.getElementById('btnOpenPasteModal');
 
 const statusIndicator = document.getElementById('statusIndicator');
 const statusMessage = document.getElementById('statusMessage');
@@ -47,10 +45,6 @@ const chkIncludeEle = document.getElementById('chkIncludeEle');
 
 const poisCardsGrid = document.getElementById('poisCardsGrid');
 
-const pasteModal = document.getElementById('pasteModal');
-const htmlTextarea = document.getElementById('htmlTextarea');
-const btnCloseModal = document.getElementById('btnCloseModal');
-const btnProcessHtml = document.getElementById('btnProcessHtml');
 
 // Helper to show/hide status
 function showStatus(msg) {
@@ -186,12 +180,7 @@ urlForm.addEventListener('submit', async (e) => {
   } catch (err) {
     hideStatus();
     console.error('Error al extraer ruta:', err);
-    if (err.message.includes('CLOUDFLARE_BLOCKED') || err.message.includes('403')) {
-      pasteModal.classList.add('open');
-      alert('Wikiloc tiene activo el sistema anti-bot de Cloudflare para peticiones web automáticas.\n\nPuedes abrir el enlace en tu navegador y pegar el código HTML en la ventana que se acaba de abrir.');
-    } else {
-      alert('No se pudo extraer la ruta: ' + err.message + '\n\nPuedes probar con el modo manual con código HTML.');
-    }
+    alert('No se pudo extraer la ruta: ' + err.message);
   }
 });
 
@@ -312,40 +301,6 @@ btnShareGpx.addEventListener('click', async () => {
   }
 });
 
-// Modal Events
-function openModal() {
-  pasteModal.classList.add('open');
-  htmlTextarea.focus();
-}
-
-function closeModal() {
-  pasteModal.classList.remove('open');
-}
-
-btnManualHtml.addEventListener('click', openModal);
-btnOpenPasteModal.addEventListener('click', openModal);
-btnCloseModal.addEventListener('click', closeModal);
-pasteModal.addEventListener('click', (e) => {
-  if (e.target === pasteModal) closeModal();
-});
-
-btnProcessHtml.addEventListener('click', async () => {
-  const html = htmlTextarea.value.trim();
-  if (!html) {
-    alert('Por favor, pega el código HTML de la ruta.');
-    return;
-  }
-
-  try {
-    showStatus('Analizando código HTML...');
-    closeModal();
-    const trailData = parseWikilocHtml(html);
-    await displayRoute(trailData);
-  } catch (err) {
-    hideStatus();
-    alert('Error al procesar el código HTML: ' + err.message);
-  }
-});
 
 // Expose for testing & dev inspection
 window.displayRoute = displayRoute;

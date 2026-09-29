@@ -17,11 +17,7 @@
         <span class="logo-text">Wikiloc GPX</span>
         <span class="logo-badge">Pro</span>
       </a>
-      <div class="header-actions">
-        <button id="btnOpenPasteModal" class="btn-header-ghost" title="Pegar código HTML">
-          <span>📋</span> Pegar HTML
-        </button>
-      </div>
+      <div class="header-actions"></div>
     </header>
 
     <!-- Hero Card with Nature Background -->
@@ -60,12 +56,6 @@
       </form>
     </div>
 
-    <!-- Quick Options -->
-    <div class="quick-options">
-      <button type="button" id="btnManualHtml" class="chip-btn">
-        <span>📄</span> Modo manual (Pegar HTML)
-      </button>
-    </div>
 
     <!-- Loading / Status indicator -->
     <div id="statusIndicator" class="status-indicator">
@@ -164,24 +154,6 @@
       </section>
     </main>
 
-    <!-- Paste HTML Modal Fallback -->
-    <div id="pasteModal" class="modal-backdrop">
-      <div class="modal-box">
-        <h3 class="modal-title">Pegar Código HTML</h3>
-        <p class="modal-desc">
-          Si la conexión directa a Wikiloc está protegida por Cloudflare, puedes abrir la ruta en tu navegador, pulsar <strong>Ver código fuente</strong> y pegar el contenido aquí:
-        </p>
-        <textarea
-          id="htmlTextarea"
-          class="modal-textarea"
-          placeholder="Pega aquí el código HTML completo de la página de Wikiloc..."
-        ></textarea>
-        <div class="modal-actions">
-          <button type="button" id="btnCloseModal" class="btn-secondary-action">Cancelar</button>
-          <button type="button" id="btnProcessHtml" class="btn-primary-action">Procesar HTML</button>
-        </div>
-      </div>
-    </div>
   </div>
 
   <script type="module" src="/src/main.js"></script>

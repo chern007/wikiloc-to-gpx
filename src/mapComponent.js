@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { createPolylineDecorator, createArrowHead } from './polylineDecorator.js';
 import { Capacitor } from '@capacitor/core';
 
 // Fix Leaflet default marker icons issue in bundlers
@@ -206,14 +207,37 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
   L.polyline(latLngs, {
     color: '#ffffff',
     weight: 7,
-    opacity: 0.85
+    opacity: 0.9
   }).addTo(currentTrackLayer);
 
-  L.polyline(latLngs, {
+  const trackLine = L.polyline(latLngs, {
     color: '#274D2E', // Forest green
-    weight: 4.5,
+    weight: 4.8,
     opacity: 0.95,
     smoothFactor: 1
+  }).addTo(currentTrackLayer);
+
+  // Directional chevrons along the track (trama en forma de flecha para indicar sentido de avance)
+  createPolylineDecorator(trackLine, {
+    patterns: [
+      {
+        offset: 30,
+        repeat: 70,
+        symbol: createArrowHead({
+          pixelSize: 10,
+          headAngle: 65,
+          polygon: false,
+          pathOptions: {
+            stroke: true,
+            color: '#ffffff',
+            weight: 2.2,
+            opacity: 0.95,
+            lineCap: 'round',
+            lineJoin: 'round'
+          }
+        })
+      }
+    ]
   }).addTo(currentTrackLayer);
 
   // Start & Finish Markers

@@ -309,44 +309,7 @@ body {
   transform: translateY(1px);
 }
 
-/* Quick Demo Chips */
-.quick-options {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin-bottom: 32px;
-}
 
-.chip-btn {
-  background: var(--surface);
-  border: 1px solid var(--surface-border);
-  color: var(--text-muted);
-  font-size: 13px;
-  font-weight: 600;
-  padding: 8px 16px;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  transition: all 0.2s ease;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.03);
-}
-
-.chip-btn:hover {
-  background: var(--surface-alt);
-  color: var(--forest-primary);
-  border-color: var(--sage-base);
-  transform: translateY(-1px);
-}
-
-.chip-btn.highlight {
-  background: var(--sage-subtle);
-  color: var(--forest-primary);
-  border-color: var(--sage-base);
-}
 
 /* Loading & Status Bar */
 .status-indicator {
@@ -1037,74 +1000,7 @@ body {
   color: var(--forest-primary);
 }
 
-/* Modal for HTML Paste Fallback */
-.modal-backdrop {
-  position: fixed;
-  inset: 0;
-  background: rgba(20, 36, 22, 0.65);
-  backdrop-filter: blur(6px);
-  z-index: 1000;
-  display: none;
-  align-items: center;
-  justify-content: center;
-  padding: 20px;
-}
 
-.modal-backdrop.open {
-  display: flex;
-}
-
-.modal-box {
-  background: white;
-  border-radius: 28px;
-  max-width: 600px;
-  width: 100%;
-  padding: 32px;
-  box-shadow: var(--shadow-float);
-  border: 1px solid var(--surface-border);
-  animation: modalPop 0.25s ease-out;
-}
-
-@keyframes modalPop {
-  from { opacity: 0; transform: scale(0.95); }
-  to { opacity: 1; transform: scale(1); }
-}
-
-.modal-title {
-  font-family: var(--font-heading);
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--forest-primary);
-  margin-bottom: 10px;
-}
-
-.modal-desc {
-  font-size: 14px;
-  color: var(--text-muted);
-  margin-bottom: 20px;
-  line-height: 1.5;
-}
-
-.modal-textarea {
-  width: 100%;
-  height: 180px;
-  border-radius: 14px;
-  border: 1px solid var(--surface-border);
-  padding: 12px;
-  font-family: monospace;
-  font-size: 12px;
-  outline: none;
-  margin-bottom: 20px;
-  background: var(--bg-nature-soft);
-  resize: vertical;
-}
-
-.modal-actions {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 12px;
-}
 
 /* Responsive adjustments */
 @media (max-width: 768px) {
