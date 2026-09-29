@@ -1,4 +1,5 @@
 import * as twkb from 'twkb';
+import { Capacitor } from '@capacitor/core';
 
 /**
  * Decodes a base64 encoded TWKB geometry string into coordinates array
@@ -123,7 +124,7 @@ export function buildGpxXml(trailData, coordinates, options = {}) {
 }
 
 /**
- * Triggers a file download on browser or webview
+ * Triggers a file download on browser via blob URL
  */
 export function downloadGpxBlob(filename, gpxString) {
   const blob = new Blob([gpxString], { type: 'application/gpx+xml;charset=utf-8' });
@@ -165,4 +166,57 @@ export async function shareGpxBlob(filename, gpxString) {
   // Fallback to normal download
   downloadGpxBlob(cleanName, gpxString);
   return { success: true, method: 'download' };
+}
+
+/**
+ * Primary download function: on Android native app saves directly to Downloads folder.
+ * On web browser, downloads via blob URL.
+ */
+export async function downloadGpx(filename, gpxString) {
+  const cleanName = filename.endsWith('.gpx') ? filename : `${filename}.gpx`;
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { WikilocExtractor } = Capacitor.Plugins;
+      if (WikilocExtractor && typeof WikilocExtractor.saveGpxToDownloads === 'function') {
+        const res = await WikilocExtractor.saveGpxToDownloads({
+          filename: cleanName,
+          content: gpxString
+        });
+        return { success: true, method: 'native', path: res ? res.path : 'Descargas' };
+      }
+    } catch (err) {
+      console.error('Error en guardado nativo:', err);
+      throw new Error('Fallo al guardar en Descargas: ' + (err.message || err));
+    }
+  }
+
+  downloadGpxBlob(cleanName, gpxString);
+  return { success: true, method: 'browser' };
+}
+
+/**
+ * Primary share function: on Android native app triggers native system Share Sheet.
+ * On web browser, uses Web Share API or download fallback.
+ */
+export async function shareGpx(filename, gpxString) {
+  const cleanName = filename.endsWith('.gpx') ? filename : `${filename}.gpx`;
+
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { WikilocExtractor } = Capacitor.Plugins;
+      if (WikilocExtractor && typeof WikilocExtractor.shareGpx === 'function') {
+        await WikilocExtractor.shareGpx({
+          filename: cleanName,
+          content: gpxString
+        });
+        return { success: true, method: 'native' };
+      }
+    } catch (err) {
+      console.error('Error al compartir nativamente:', err);
+      throw new Error('Fallo al compartir: ' + (err.message || err));
+    }
+  }
+
+  return await shareGpxBlob(cleanName, gpxString);
 }

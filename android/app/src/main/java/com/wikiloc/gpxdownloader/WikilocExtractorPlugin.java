@@ -1,8 +1,15 @@
 package com.wikiloc.gpxdownloader;
 
 import android.app.Dialog;
+import android.content.ContentResolver;
+import android.content.ContentValues;
+import android.content.Intent;
+import android.net.Uri;
+import android.os.Build;
+import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
+import android.provider.MediaStore;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
@@ -11,6 +18,9 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.FrameLayout;
+import android.widget.Toast;
+
+import androidx.core.content.FileProvider;
 
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
@@ -18,6 +28,10 @@ import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @CapacitorPlugin(name = "WikilocExtractor")
@@ -163,5 +177,120 @@ public class WikilocExtractorPlugin extends Plugin {
             }
             call.reject("Tiempo de espera agotado al conectar con Wikiloc.");
         }, 35000);
+    }
+
+    @PluginMethod
+    public void saveGpxToDownloads(PluginCall call) {
+        String filename = call.getString("filename");
+        String gpxContent = call.getString("content");
+
+        if (filename == null || filename.isEmpty() || gpxContent == null) {
+            call.reject("Nombre de archivo o contenido inválido");
+            return;
+        }
+
+        if (!filename.endsWith(".gpx")) {
+            filename += ".gpx";
+        }
+
+        final String finalFilename = filename;
+
+        getActivity().runOnUiThread(() -> {
+            try {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    ContentValues values = new ContentValues();
+                    values.put(MediaStore.MediaColumns.DISPLAY_NAME, finalFilename);
+                    values.put(MediaStore.MediaColumns.MIME_TYPE, "application/gpx+xml");
+                    values.put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS);
+
+                    ContentResolver resolver = getContext().getContentResolver();
+                    Uri fileUri = resolver.insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI, values);
+
+                    if (fileUri != null) {
+                        try (OutputStream os = resolver.openOutputStream(fileUri)) {
+                            if (os != null) {
+                                os.write(gpxContent.getBytes(StandardCharsets.UTF_8));
+                                os.flush();
+                            }
+                        }
+                    } else {
+                        throw new Exception("No se pudo registrar el archivo en Descargas.");
+                    }
+                } else {
+                    File downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS);
+                    if (!downloadsDir.exists()) {
+                        downloadsDir.mkdirs();
+                    }
+                    File file = new File(downloadsDir, finalFilename);
+                    try (FileOutputStream fos = new FileOutputStream(file)) {
+                        fos.write(gpxContent.getBytes(StandardCharsets.UTF_8));
+                        fos.flush();
+                    }
+                }
+
+                Toast.makeText(getActivity(), "Guardado en Descargas: " + finalFilename, Toast.LENGTH_LONG).show();
+
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                ret.put("filename", finalFilename);
+                ret.put("path", "Descargas/" + finalFilename);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Error al guardar archivo en Descargas: " + e.getMessage());
+            }
+        });
+    }
+
+    @PluginMethod
+    public void shareGpx(PluginCall call) {
+        String filename = call.getString("filename");
+        String gpxContent = call.getString("content");
+
+        if (filename == null || filename.isEmpty() || gpxContent == null) {
+            call.reject("Nombre de archivo o contenido inválido");
+            return;
+        }
+
+        if (!filename.endsWith(".gpx")) {
+            filename += ".gpx";
+        }
+
+        final String finalFilename = filename;
+
+        getActivity().runOnUiThread(() -> {
+            try {
+                File cacheDir = new File(getContext().getCacheDir(), "shared_gpx");
+                if (!cacheDir.exists()) {
+                    cacheDir.mkdirs();
+                }
+                File gpxFile = new File(cacheDir, finalFilename);
+                try (FileOutputStream fos = new FileOutputStream(gpxFile)) {
+                    fos.write(gpxContent.getBytes(StandardCharsets.UTF_8));
+                    fos.flush();
+                }
+
+                Uri contentUri = FileProvider.getUriForFile(
+                        getContext(),
+                        getContext().getPackageName() + ".fileprovider",
+                        gpxFile
+                );
+
+                Intent shareIntent = new Intent(Intent.ACTION_SEND);
+                shareIntent.setType("application/gpx+xml");
+                shareIntent.putExtra(Intent.EXTRA_STREAM, contentUri);
+                shareIntent.putExtra(Intent.EXTRA_SUBJECT, finalFilename);
+                shareIntent.putExtra(Intent.EXTRA_TEXT, "Ruta GPX exportada: " + finalFilename);
+                shareIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+
+                Intent chooser = Intent.createChooser(shareIntent, "Compartir ruta GPX con...");
+                getActivity().startActivity(chooser);
+
+                JSObject ret = new JSObject();
+                ret.put("success", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Error al compartir archivo: " + e.getMessage());
+            }
+        });
     }
 }

@@ -1,7 +1,7 @@
 import './style.css';
 import { SAMPLE_ROUTE } from './sampleData.js';
 import { fetchAndExtractTrail, parseWikilocHtml } from './wikilocExtractor.js';
-import { decodeTwkbBase64, buildGpxXml, downloadGpxBlob, shareGpxBlob } from './gpxExporter.js';
+import { decodeTwkbBase64, buildGpxXml, downloadGpx, shareGpx } from './gpxExporter.js';
 import { renderRouteMap, renderElevationProfile } from './mapComponent.js';
 
 // Application State
@@ -198,20 +198,34 @@ btnDemoJanela.addEventListener('click', async () => {
 });
 
 // Event: Download GPX button
-btnDownloadGpx.addEventListener('click', () => {
+btnDownloadGpx.addEventListener('click', async () => {
   if (!currentTrailData || !currentCoordinates) {
     alert('Primero debes extraer una ruta.');
     return;
   }
 
-  const options = {
-    includeWaypoints: chkIncludeWpts.checked,
-    includeElevation: chkIncludeEle.checked
-  };
+  try {
+    const options = {
+      includeWaypoints: chkIncludeWpts.checked,
+      includeElevation: chkIncludeEle.checked
+    };
 
-  const xml = buildGpxXml(currentTrailData, currentCoordinates, options);
-  const safeFilename = `${(currentTrailData.name || 'ruta_wikiloc').replace(/[^a-zA-Z0-9_\-áéíóúÁÉÍÓÚñÑ ]/g, '')}.gpx`;
-  downloadGpxBlob(safeFilename, xml);
+    const xml = buildGpxXml(currentTrailData, currentCoordinates, options);
+    const safeFilename = `${(currentTrailData.name || 'ruta_wikiloc').replace(/[^a-zA-Z0-9_\-áéíóúÁÉÍÓÚñÑ ]/g, '')}.gpx`;
+
+    showStatus('Guardando archivo GPX en Descargas...');
+    const result = await downloadGpx(safeFilename, xml);
+    hideStatus();
+
+    if (result && result.method === 'native') {
+      showStatus('✅ GPX guardado con éxito en Descargas');
+      setTimeout(hideStatus, 3500);
+    }
+  } catch (err) {
+    hideStatus();
+    console.error('Error al descargar GPX:', err);
+    alert('No se pudo guardar el archivo GPX: ' + err.message);
+  }
 });
 
 // Event: Share GPX button
@@ -221,14 +235,23 @@ btnShareGpx.addEventListener('click', async () => {
     return;
   }
 
-  const options = {
-    includeWaypoints: chkIncludeWpts.checked,
-    includeElevation: chkIncludeEle.checked
-  };
+  try {
+    const options = {
+      includeWaypoints: chkIncludeWpts.checked,
+      includeElevation: chkIncludeEle.checked
+    };
 
-  const xml = buildGpxXml(currentTrailData, currentCoordinates, options);
-  const safeFilename = `${(currentTrailData.name || 'ruta_wikiloc').replace(/[^a-zA-Z0-9_\-áéíóúÁÉÍÓÚñÑ ]/g, '')}.gpx`;
-  await shareGpxBlob(safeFilename, xml);
+    const xml = buildGpxXml(currentTrailData, currentCoordinates, options);
+    const safeFilename = `${(currentTrailData.name || 'ruta_wikiloc').replace(/[^a-zA-Z0-9_\-áéíóúÁÉÍÓÚñÑ ]/g, '')}.gpx`;
+
+    showStatus('Preparando archivo para compartir...');
+    await shareGpx(safeFilename, xml);
+    hideStatus();
+  } catch (err) {
+    hideStatus();
+    console.error('Error al compartir GPX:', err);
+    alert('No se pudo compartir el archivo GPX: ' + err.message);
+  }
 });
 
 // Modal Events
@@ -265,6 +288,3 @@ btnProcessHtml.addEventListener('click', async () => {
     alert('Error al procesar el código HTML: ' + err.message);
   }
 });
-
-// Auto-load demo on initial load so the user sees the interface immediately!
-displayRoute(SAMPLE_ROUTE);
