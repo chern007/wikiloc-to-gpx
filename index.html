@@ -62,9 +62,6 @@
 
     <!-- Quick Options -->
     <div class="quick-options">
-      <button type="button" id="btnDemoJanela" class="chip-btn highlight">
-        <span>🌲</span> Probar con: Janela do Inferno (Azores)
-      </button>
       <button type="button" id="btnManualHtml" class="chip-btn">
         <span>📄</span> Modo manual (Pegar HTML)
       </button>
@@ -149,9 +146,23 @@
       <section class="map-card">
         <div class="card-title-row">
           <h3 class="section-h3">🗺️ Recorrido en el Mapa</h3>
-          <span id="trackpointsCounter" class="ele-stat-pill">791 puntos</span>
+          <span id="trackpointsCounter" class="ele-stat-pill">0 puntos</span>
         </div>
-        <div id="routeMap" class="map-container"></div>
+        <div class="map-wrapper">
+          <div id="routeMap" class="map-container"></div>
+          
+          <!-- Floating Controls on the Map -->
+          <div class="map-floating-bar">
+            <button type="button" id="btnFitRoute" class="map-floating-btn" title="Ajustar y ver toda la ruta">
+              <span class="btn-icon">📐</span>
+              <span class="btn-text">Ver ruta completa</span>
+            </button>
+            <button type="button" id="btnToggleGps" class="map-floating-btn" title="Ubicación GPS y seguimiento">
+              <span class="btn-icon" id="gpsIcon">📍</span>
+              <span class="btn-text" id="gpsText">Mi Ubicación</span>
+            </button>
+          </div>
+        </div>
         <div id="elevationProfileContainer"></div>
       </section>
 

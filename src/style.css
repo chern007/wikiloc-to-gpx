@@ -610,14 +610,143 @@ body {
   color: var(--forest-primary);
 }
 
+.map-wrapper {
+  position: relative;
+  width: 100%;
+  margin-bottom: 20px;
+}
+
 .map-container {
-  height: 420px;
+  height: 440px;
   width: 100%;
   border-radius: var(--radius-inner);
   overflow: hidden;
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
-  margin-bottom: 20px;
   border: 1px solid var(--surface-border);
+}
+
+/* Floating Controls over Leaflet Map */
+.map-floating-bar {
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  pointer-events: none;
+}
+
+.map-floating-btn {
+  pointer-events: auto;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1px solid rgba(39, 77, 46, 0.22);
+  color: var(--forest-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 700;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
+  transition: all 0.2s ease;
+}
+
+.map-floating-btn:hover {
+  background: white;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
+  border-color: var(--forest-primary);
+}
+
+.map-floating-btn:active {
+  transform: translateY(1px);
+}
+
+.map-floating-btn.active {
+  background: var(--forest-primary);
+  color: white;
+  border-color: var(--forest-primary);
+  box-shadow: 0 4px 14px rgba(39, 77, 46, 0.4);
+}
+
+.map-floating-btn.active .btn-icon {
+  animation: pulse-spin 2s infinite ease-in-out;
+}
+
+@keyframes pulse-spin {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.25); }
+  100% { transform: scale(1); }
+}
+
+/* User GPS Pulse Dot */
+.user-gps-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.user-gps-marker {
+  position: relative;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: #0284c7;
+  border: 3px solid #ffffff;
+  box-shadow: 0 0 10px rgba(2, 132, 199, 0.85);
+}
+
+.user-gps-pulse {
+  position: absolute;
+  top: -11px;
+  left: -11px;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(2, 132, 199, 0.4);
+  animation: gpsPulseAnimation 2s infinite ease-out;
+}
+
+@keyframes gpsPulseAnimation {
+  0% {
+    transform: scale(0.4);
+    opacity: 1;
+  }
+  100% {
+    transform: scale(2.2);
+    opacity: 0;
+  }
+}
+
+.poi-zoom-badge {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  background: rgba(39, 77, 46, 0.88);
+  backdrop-filter: blur(6px);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+  opacity: 0.92;
+  transition: opacity 0.2s, transform 0.2s;
+}
+
+.poi-card:hover .poi-zoom-badge {
+  opacity: 1;
+  transform: scale(1.05);
 }
 
 /* Custom Leaflet Pins */

@@ -9,4 +9,12 @@ public class MainActivity extends BridgeActivity {
         registerPlugin(WikilocExtractorPlugin.class);
         super.onCreate(savedInstanceState);
     }
+
+    @Override
+    public void onStart() {
+        super.onStart();
+        if (getBridge() != null && getBridge().getWebView() != null) {
+            getBridge().getWebView().getSettings().setGeolocationEnabled(true);
+        }
+    }
 }

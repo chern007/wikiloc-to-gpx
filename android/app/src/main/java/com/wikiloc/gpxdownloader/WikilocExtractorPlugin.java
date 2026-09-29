@@ -22,11 +22,15 @@ import android.widget.Toast;
 
 import androidx.core.content.FileProvider;
 
+import android.Manifest;
 import com.getcapacitor.JSObject;
+import com.getcapacitor.PermissionState;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
 import com.getcapacitor.annotation.CapacitorPlugin;
+import com.getcapacitor.annotation.Permission;
+import com.getcapacitor.annotation.PermissionCallback;
 
 import java.io.File;
 import java.io.FileOutputStream;
@@ -34,7 +38,18 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-@CapacitorPlugin(name = "WikilocExtractor")
+@CapacitorPlugin(
+    name = "WikilocExtractor",
+    permissions = {
+        @Permission(
+            alias = "location",
+            strings = {
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            }
+        )
+    }
+)
 public class WikilocExtractorPlugin extends Plugin {
 
     private Dialog activeDialog = null;
@@ -292,5 +307,23 @@ public class WikilocExtractorPlugin extends Plugin {
                 call.reject("Error al compartir archivo: " + e.getMessage());
             }
         });
+    }
+
+    @PluginMethod
+    public void requestLocationPermission(PluginCall call) {
+        if (getPermissionState("location") != PermissionState.GRANTED) {
+            requestPermissionForAlias("location", call, "locationPermCallback");
+        } else {
+            JSObject ret = new JSObject();
+            ret.put("granted", true);
+            call.resolve(ret);
+        }
+    }
+
+    @PermissionCallback
+    private void locationPermCallback(PluginCall call) {
+        JSObject ret = new JSObject();
+        ret.put("granted", getPermissionState("location") == PermissionState.GRANTED);
+        call.resolve(ret);
     }
 }

@@ -1,5 +1,6 @@
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { Capacitor } from '@capacitor/core';
 
 // Fix Leaflet default marker icons issue in bundlers
 delete L.Icon.Default.prototype._getIconUrl;
@@ -13,6 +14,18 @@ let currentMap = null;
 let currentTrackLayer = null;
 let currentMarkersLayer = null;
 let cursorMarker = null;
+
+// Map of POI marker instances by index
+const poiMarkersMap = new Map();
+
+// GPS tracking state
+let userGpsMarker = null;
+let userAccuracyCircle = null;
+let gpsWatchId = null;
+let isTrackingGps = false;
+let followUser = true;
+let lastKnownLocation = null;
+let gpsStatusCallback = null;
 
 /**
  * Initializes or updates Leaflet map with track and waypoints
@@ -45,7 +58,6 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
       maxZoom: 18
     });
 
-    // Default to topo or OSM
     osmLayer.addTo(currentMap);
 
     const baseMaps = {
@@ -61,6 +73,7 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
   } else {
     currentTrackLayer.clearLayers();
     currentMarkersLayer.clearLayers();
+    poiMarkersMap.clear();
     if (cursorMarker) {
       cursorMarker.remove();
       cursorMarker = null;
@@ -68,17 +81,16 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
   }
 
   // 1. Draw track polyline
-  // coordinates is [lon, lat, ele] -> Leaflet expects [lat, lon]
   const latLngs = coordinates.map(c => [c[1], c[0]]);
 
-  // Forest green with subtle outline
-  const bgPolyline = L.polyline(latLngs, {
+  // Outline for high contrast on satellite/topo
+  L.polyline(latLngs, {
     color: '#ffffff',
     weight: 7,
-    opacity: 0.8
+    opacity: 0.85
   }).addTo(currentTrackLayer);
 
-  const mainPolyline = L.polyline(latLngs, {
+  L.polyline(latLngs, {
     color: '#274D2E', // Forest green
     weight: 4.5,
     opacity: 0.95,
@@ -108,7 +120,6 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
       .bindPopup('<b>Inicio de la Ruta</b>')
       .addTo(currentMarkersLayer);
 
-    // If not a pure loop, add distinct finish pin
     const distMeters = currentMap.distance(startPoint, endPoint);
     if (distMeters > 50) {
       L.marker(endPoint, { icon: endIcon, title: 'Fin de ruta' })
@@ -136,34 +147,262 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
       iconAnchor: [16, 16]
     });
 
-    let popupContent = `
+    const popupContent = `
       <div class="poi-popup-card">
         ${wp.photoUrl ? `<div class="poi-popup-img"><img src="${wp.photoUrl}" alt="${wp.name}"/></div>` : ''}
         <div class="poi-popup-body">
-          <span class="poi-popup-tag">${wp.pictogramName || 'POI'}</span>
+          <span class="poi-popup-tag">${wp.pictogramName || 'Punto de Interés'}</span>
           <h4 class="poi-popup-title">${wp.name}</h4>
           ${wp.elevation != null ? `<div class="poi-popup-ele">⛰️ Altitud: <strong>${wp.elevation} m</strong></div>` : ''}
         </div>
       </div>
     `;
 
-    L.marker([wp.lat, wp.lon], { icon: poiIcon })
+    const marker = L.marker([wp.lat, wp.lon], { icon: poiIcon })
       .bindPopup(popupContent, { maxWidth: 260, className: 'nature-leaflet-popup' })
       .addTo(currentMarkersLayer);
+
+    poiMarkersMap.set(idx, marker);
   });
 
-  // Fit bounds with comfortable padding
-  const bounds = currentTrackLayer.getBounds();
-  if (bounds.isValid()) {
-    currentMap.fitBounds(bounds, { padding: [30, 30] });
-  }
-
-  // Invalidate size after DOM layout stabilizes
-  setTimeout(() => {
-    if (currentMap) currentMap.invalidateSize();
-  }, 200);
+  // Fit bounds immediately and with cascading delays to guarantee complete track visibility
+  fitRouteBounds();
+  setTimeout(fitRouteBounds, 120);
+  setTimeout(fitRouteBounds, 350);
+  setTimeout(fitRouteBounds, 750);
 
   return currentMap;
+}
+
+/**
+ * Fits the map view to the entire route bounds (Zoom Extensión)
+ */
+export function fitRouteBounds() {
+  if (!currentMap || !currentTrackLayer) return;
+  currentMap.invalidateSize();
+  const bounds = currentTrackLayer.getBounds();
+  if (bounds.isValid()) {
+    currentMap.fitBounds(bounds, {
+      padding: [40, 40],
+      maxZoom: 16
+    });
+  }
+}
+
+/**
+ * Centers and zooms into a specific POI marker and opens its popup
+ */
+export function focusPoi(idx) {
+  if (!currentMap) return;
+  const marker = poiMarkersMap.get(idx);
+  if (marker) {
+    currentMap.invalidateSize();
+    const latLng = marker.getLatLng();
+    currentMap.setView(latLng, 16, { animate: true });
+    marker.openPopup();
+
+    const mapEl = document.getElementById('routeMap');
+    if (mapEl) {
+      mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }
+}
+
+/**
+ * Toggles GPS location tracking on the map
+ */
+export async function toggleGpsTracking(onStatusChange) {
+  if (onStatusChange) gpsStatusCallback = onStatusChange;
+
+  if (isTrackingGps) {
+    if (!followUser && lastKnownLocation) {
+      // Re-center on user and resume follow mode
+      followUser = true;
+      currentMap.setView([lastKnownLocation.lat, lastKnownLocation.lon], 16, { animate: true });
+      notifyGpsStatus({ active: true, following: true, ...lastKnownLocation });
+      return;
+    }
+    // Turn off
+    stopGpsTracking();
+    return;
+  }
+
+  await startGpsTracking(onStatusChange);
+}
+
+/**
+ * Starts continuous GPS tracking
+ */
+export async function startGpsTracking(onStatusChange) {
+  if (onStatusChange) gpsStatusCallback = onStatusChange;
+
+  if (!navigator.geolocation) {
+    alert('Tu dispositivo no dispone de sensor GPS o geolocalización.');
+    notifyGpsStatus({ active: false, following: false, error: 'GPS no soportado' });
+    return;
+  }
+
+  // If Capacitor native, request permission via plugin
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const { WikilocExtractor } = Capacitor.Plugins;
+      if (WikilocExtractor && typeof WikilocExtractor.requestLocationPermission === 'function') {
+        await WikilocExtractor.requestLocationPermission();
+      }
+    } catch (e) {
+      console.warn('Permiso location nativo:', e);
+    }
+  }
+
+  notifyGpsStatus({ active: true, following: true, loading: true });
+  isTrackingGps = true;
+  followUser = true;
+
+  if (currentMap) {
+    currentMap.on('dragstart', handleUserMapDrag);
+  }
+
+  let isFirstFix = true;
+
+  gpsWatchId = navigator.geolocation.watchPosition(
+    (position) => {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      const accuracy = position.coords.accuracy || 12;
+      const alt = position.coords.altitude;
+
+      lastKnownLocation = { lat, lon, accuracy, alt };
+
+      updateUserLocationMarker(lat, lon, accuracy);
+
+      if (isFirstFix || followUser) {
+        if (currentMap) {
+          const currentZoom = currentMap.getZoom();
+          const targetZoom = Math.max(currentZoom, 16);
+          if (isFirstFix) {
+            currentMap.setView([lat, lon], targetZoom, { animate: true });
+            isFirstFix = false;
+          } else {
+            currentMap.panTo([lat, lon], { animate: true });
+          }
+        }
+      }
+
+      notifyGpsStatus({
+        active: true,
+        following: followUser,
+        loading: false,
+        lat,
+        lon,
+        accuracy: Math.round(accuracy)
+      });
+    },
+    (err) => {
+      console.error('Error de geolocalización GPS:', err);
+      let errMsg = 'No se pudo obtener la señal GPS.';
+      if (err.code === 1) errMsg = 'Permiso de ubicación denegado. Activa el GPS en Ajustes.';
+      else if (err.code === 2) errMsg = 'Buscando señal GPS...';
+      else if (err.code === 3) errMsg = 'Tiempo de espera de GPS agotado.';
+
+      if (err.code === 1) {
+        stopGpsTracking();
+        alert(errMsg);
+      }
+      notifyGpsStatus({ active: isTrackingGps, following: followUser, error: errMsg });
+    },
+    {
+      enableHighAccuracy: true,
+      maximumAge: 1500,
+      timeout: 15000
+    }
+  );
+}
+
+/**
+ * Stops GPS tracking and clears user marker
+ */
+export function stopGpsTracking() {
+  if (gpsWatchId != null) {
+    navigator.geolocation.clearWatch(gpsWatchId);
+    gpsWatchId = null;
+  }
+
+  isTrackingGps = false;
+  followUser = false;
+
+  if (currentMap) {
+    currentMap.off('dragstart', handleUserMapDrag);
+  }
+
+  if (userGpsMarker) {
+    userGpsMarker.remove();
+    userGpsMarker = null;
+  }
+  if (userAccuracyCircle) {
+    userAccuracyCircle.remove();
+    userAccuracyCircle = null;
+  }
+
+  notifyGpsStatus({ active: false, following: false });
+}
+
+function handleUserMapDrag() {
+  if (isTrackingGps && followUser) {
+    followUser = false;
+    notifyGpsStatus({ active: true, following: false, ...lastKnownLocation });
+  }
+}
+
+function notifyGpsStatus(status) {
+  if (typeof gpsStatusCallback === 'function') {
+    gpsStatusCallback(status);
+  }
+}
+
+function updateUserLocationMarker(lat, lon, accuracy) {
+  if (!currentMap) return;
+  const latLng = [lat, lon];
+
+  // 1. Accuracy Circle
+  if (!userAccuracyCircle) {
+    userAccuracyCircle = L.circle(latLng, {
+      radius: accuracy,
+      color: '#0284c7',
+      weight: 1.5,
+      opacity: 0.7,
+      fillColor: '#38bdf8',
+      fillOpacity: 0.15
+    }).addTo(currentMap);
+  } else {
+    userAccuracyCircle.setLatLng(latLng);
+    userAccuracyCircle.setRadius(accuracy);
+  }
+
+  // 2. Pulse Dot Marker
+  if (!userGpsMarker) {
+    const icon = L.divIcon({
+      className: 'user-gps-container',
+      html: `
+        <div class="user-gps-marker">
+          <div class="user-gps-pulse"></div>
+        </div>
+      `,
+      iconSize: [20, 20],
+      iconAnchor: [10, 10]
+    });
+
+    userGpsMarker = L.marker(latLng, {
+      icon,
+      zIndexOffset: 1000
+    })
+      .bindPopup('<b>📍 Tu Ubicación Actual</b><br><small>Precisión: ±' + Math.round(accuracy) + ' m</small>')
+      .addTo(currentMap);
+  } else {
+    userGpsMarker.setLatLng(latLng);
+    if (userGpsMarker.getPopup()) {
+      userGpsMarker.getPopup().setContent('<b>📍 Tu Ubicación Actual</b><br><small>Precisión: ±' + Math.round(accuracy) + ' m</small>');
+    }
+  }
 }
 
 /**

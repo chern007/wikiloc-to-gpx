@@ -2,7 +2,14 @@ import './style.css';
 import { SAMPLE_ROUTE } from './sampleData.js';
 import { fetchAndExtractTrail, parseWikilocHtml } from './wikilocExtractor.js';
 import { decodeTwkbBase64, buildGpxXml, downloadGpx, shareGpx } from './gpxExporter.js';
-import { renderRouteMap, renderElevationProfile } from './mapComponent.js';
+import {
+  renderRouteMap,
+  renderElevationProfile,
+  fitRouteBounds,
+  focusPoi,
+  toggleGpsTracking,
+  stopGpsTracking
+} from './mapComponent.js';
 
 // Application State
 let currentTrailData = null;
@@ -12,7 +19,6 @@ let currentCoordinates = null;
 const urlForm = document.getElementById('urlForm');
 const wikilocUrlInput = document.getElementById('wikilocUrlInput');
 const btnClipboardPaste = document.getElementById('btnClipboardPaste');
-const btnDemoJanela = document.getElementById('btnDemoJanela');
 const btnManualHtml = document.getElementById('btnManualHtml');
 const btnOpenPasteModal = document.getElementById('btnOpenPasteModal');
 
@@ -32,6 +38,11 @@ const metricTime = document.getElementById('metricTime');
 const trackpointsCounter = document.getElementById('trackpointsCounter');
 const poisCounterBadge = document.getElementById('poisCounterBadge');
 const labelWptsCount = document.getElementById('labelWptsCount');
+
+const btnFitRoute = document.getElementById('btnFitRoute');
+const btnToggleGps = document.getElementById('btnToggleGps');
+const gpsIcon = document.getElementById('gpsIcon');
+const gpsText = document.getElementById('gpsText');
 
 const btnDownloadGpx = document.getElementById('btnDownloadGpx');
 const btnShareGpx = document.getElementById('btnShareGpx');
@@ -83,6 +94,9 @@ async function displayRoute(trailData) {
     poisCounterBadge.textContent = `${wpts.length} POIs`;
     labelWptsCount.textContent = `Incluir puntos de interés (${wpts.length} POIs)`;
 
+    // Reveal results first so container is visible and Leaflet can measure dimensions!
+    resultsSection.classList.add('visible');
+
     // 3. Render Leaflet Map & Elevation Profile
     renderRouteMap('routeMap', currentCoordinates, wpts);
     renderElevationProfile('elevationProfileContainer', currentCoordinates);
@@ -90,9 +104,13 @@ async function displayRoute(trailData) {
     // 4. Render POIs Grid (Cards matching the reference design)
     renderPoisCards(wpts);
 
-    // 5. Reveal results
     hideStatus();
-    resultsSection.classList.add('visible');
+
+    // Trigger fit bounds with cascading timeouts to ensure the full route is completely visible
+    fitRouteBounds();
+    setTimeout(fitRouteBounds, 120);
+    setTimeout(fitRouteBounds, 350);
+    setTimeout(fitRouteBounds, 750);
 
     // Scroll smoothly to results
     resultsSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -120,32 +138,32 @@ function renderPoisCards(waypoints) {
   waypoints.forEach((wp, index) => {
     const card = document.createElement('div');
     card.className = 'poi-card';
-    card.title = `Pulsar para centrar en el mapa`;
+    card.title = `Pulsar para centrar y ver en el mapa`;
 
     const iconType = wp.pictogramName || 'POI';
     const eleText = wp.elevation != null ? `⛰️ ${wp.elevation} m` : '';
 
     card.innerHTML = `
-      <div class="poi-card-img-wrap">
+      <div class="poi-card-img-wrap" data-poi-idx="${index}">
         ${wp.photoUrl
           ? `<img src="${wp.photoUrl}" alt="${wp.name}" class="poi-card-img" loading="lazy" />`
           : `<div class="poi-card-img-placeholder">🏔️</div>`
         }
         <span class="poi-pill-tag">${iconType}</span>
+        <span class="poi-zoom-badge">🔍 Zoom mapa</span>
       </div>
       <div class="poi-card-body">
         <h4 class="poi-card-title">${wp.name}</h4>
         <div class="poi-card-footer">
           <span class="poi-card-ele">${eleText}</span>
-          <span class="poi-card-action">Ver en mapa →</span>
+          <span class="poi-card-action">Ver en mapa 📍</span>
         </div>
       </div>
     `;
 
-    // Clicking card centers map on this POI
+    // Clicking card or photo triggers map zoom & center on this POI!
     card.addEventListener('click', () => {
-      const mapEl = document.getElementById('routeMap');
-      mapEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      focusPoi(index);
     });
 
     poisCardsGrid.appendChild(card);
@@ -169,7 +187,7 @@ urlForm.addEventListener('submit', async (e) => {
       pasteModal.classList.add('open');
       alert('Wikiloc tiene activo el sistema anti-bot de Cloudflare para peticiones web automáticas.\n\nPuedes abrir el enlace en tu navegador y pegar el código HTML en la ventana que se acaba de abrir.');
     } else {
-      alert('No se pudo extraer la ruta: ' + err.message + '\n\nPuedes probar con el botón "Janela do Inferno" o el modo manual con código HTML.');
+      alert('No se pudo extraer la ruta: ' + err.message + '\n\nPuedes probar con el modo manual con código HTML.');
     }
   }
 });
@@ -191,11 +209,37 @@ btnClipboardPaste.addEventListener('click', async () => {
   }
 });
 
-// Event: Demo Janela do Inferno button
-btnDemoJanela.addEventListener('click', async () => {
-  wikilocUrlInput.value = SAMPLE_ROUTE.url;
-  await displayRoute(SAMPLE_ROUTE);
-});
+// Event: Floating Map Controls (Fit Route Bounds)
+if (btnFitRoute) {
+  btnFitRoute.addEventListener('click', () => {
+    fitRouteBounds();
+  });
+}
+
+// Event: Floating Map Controls (GPS Geolocation Tracking)
+if (btnToggleGps) {
+  btnToggleGps.addEventListener('click', async () => {
+    await toggleGpsTracking((status) => {
+      if (status.active) {
+        btnToggleGps.classList.add('active');
+        if (status.loading) {
+          if (gpsIcon) gpsIcon.textContent = '⏳';
+          if (gpsText) gpsText.textContent = 'Buscando GPS...';
+        } else if (status.following) {
+          if (gpsIcon) gpsIcon.textContent = '🎯';
+          if (gpsText) gpsText.textContent = 'Siguiendo ruta';
+        } else {
+          if (gpsIcon) gpsIcon.textContent = '📍';
+          if (gpsText) gpsText.textContent = 'Centrar en mí';
+        }
+      } else {
+        btnToggleGps.classList.remove('active');
+        if (gpsIcon) gpsIcon.textContent = '📍';
+        if (gpsText) gpsText.textContent = 'Mi Ubicación';
+      }
+    });
+  });
+}
 
 // Event: Download GPX button
 btnDownloadGpx.addEventListener('click', async () => {
