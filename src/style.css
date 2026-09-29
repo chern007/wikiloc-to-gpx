@@ -679,21 +679,54 @@ body {
   100% { transform: scale(1); }
 }
 
-/* User GPS Pulse Dot */
+/* User GPS Pulse Dot & Directional Compass Beam */
 .user-gps-container {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  pointer-events: none !important;
+}
+
+.user-gps-wrapper {
+  position: relative;
+  width: 64px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
+  pointer-events: none;
+}
+
+.user-compass-beam {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 64px;
+  height: 64px;
+  transform-origin: 32px 32px;
+  transition: transform 0.12s linear;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.compass-beam-svg {
+  width: 64px;
+  height: 64px;
+  display: block;
 }
 
 .user-gps-marker {
-  position: relative;
+  position: absolute;
+  top: 23px;
+  left: 23px;
   width: 18px;
   height: 18px;
   border-radius: 50%;
   background: #0284c7;
   border: 3px solid #ffffff;
   box-shadow: 0 0 10px rgba(2, 132, 199, 0.85);
+  z-index: 10;
+  pointer-events: auto;
 }
 
 .user-gps-pulse {

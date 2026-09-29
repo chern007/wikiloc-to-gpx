@@ -1,9 +1,16 @@
 package com.wikiloc.gpxdownloader;
 
 import android.app.Dialog;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.hardware.Sensor;
+import android.hardware.SensorEvent;
+import android.hardware.SensorEventListener;
+import android.hardware.SensorManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Environment;
@@ -338,5 +345,128 @@ public class WikilocExtractorPlugin extends Plugin {
         JSObject ret = new JSObject();
         ret.put("granted", getPermissionState("location") == PermissionState.GRANTED);
         call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void readClipboard(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                ClipboardManager clipboard = (ClipboardManager) getContext().getSystemService(Context.CLIPBOARD_SERVICE);
+                if (clipboard != null && clipboard.hasPrimaryClip()) {
+                    ClipData clip = clipboard.getPrimaryClip();
+                    if (clip != null && clip.getItemCount() > 0) {
+                        CharSequence text = clip.getItemAt(0).coerceToText(getContext());
+                        JSObject ret = new JSObject();
+                        ret.put("value", text != null ? text.toString() : "");
+                        call.resolve(ret);
+                        return;
+                    }
+                }
+                JSObject ret = new JSObject();
+                ret.put("value", "");
+                call.resolve(ret);
+            } catch (Exception e) {
+                JSObject ret = new JSObject();
+                ret.put("value", "");
+                call.resolve(ret);
+            }
+        });
+    }
+
+    private SensorManager sensorManager = null;
+    private SensorEventListener compassListener = null;
+
+    @PluginMethod
+    public void startCompass(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                if (sensorManager == null) {
+                    sensorManager = (SensorManager) getContext().getSystemService(Context.SENSOR_SERVICE);
+                }
+                if (sensorManager == null) {
+                    call.reject("SensorManager no disponible");
+                    return;
+                }
+
+                if (compassListener != null) {
+                    sensorManager.unregisterListener(compassListener);
+                }
+
+                Sensor sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ROTATION_VECTOR);
+                if (sensor == null) {
+                    sensor = sensorManager.getDefaultSensor(Sensor.TYPE_ORIENTATION);
+                }
+
+                if (sensor == null) {
+                    call.reject("Sensor de brújula no disponible");
+                    return;
+                }
+
+                final boolean isRotationVector = (sensor.getType() == Sensor.TYPE_ROTATION_VECTOR);
+
+                compassListener = new SensorEventListener() {
+                    private long lastUpdate = 0;
+
+                    @Override
+                    public void onSensorChanged(SensorEvent event) {
+                        long now = System.currentTimeMillis();
+                        if (now - lastUpdate < 50) return; // ~20 Hz
+                        lastUpdate = now;
+
+                        float heading = 0f;
+                        if (isRotationVector) {
+                            float[] rotationMatrix = new float[9];
+                            SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
+                            float[] orientation = new float[3];
+                            SensorManager.getOrientation(rotationMatrix, orientation);
+                            heading = (float) Math.toDegrees(orientation[0]);
+                            if (heading < 0) heading += 360f;
+                        } else {
+                            heading = event.values[0];
+                        }
+
+                        JSObject ret = new JSObject();
+                        ret.put("heading", Math.round(heading * 10f) / 10f);
+                        notifyListeners("compassUpdate", ret);
+                    }
+
+                    @Override
+                    public void onAccuracyChanged(Sensor sensor, int accuracy) {}
+                };
+
+                sensorManager.registerListener(compassListener, sensor, SensorManager.SENSOR_DELAY_UI);
+                JSObject ret = new JSObject();
+                ret.put("started", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Error al iniciar brújula: " + e.getMessage());
+            }
+        });
+    }
+
+    @PluginMethod
+    public void stopCompass(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                if (sensorManager != null && compassListener != null) {
+                    sensorManager.unregisterListener(compassListener);
+                    compassListener = null;
+                }
+                JSObject ret = new JSObject();
+                ret.put("stopped", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Error al detener brújula: " + e.getMessage());
+            }
+        });
+    }
+
+    @Override
+    protected void handleOnDestroy() {
+        super.handleOnDestroy();
+        if (sensorManager != null && compassListener != null) {
+            sensorManager.unregisterListener(compassListener);
+            compassListener = null;
+        }
     }
 }

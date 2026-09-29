@@ -28,6 +28,41 @@ let lastKnownLocation = null;
 let gpsStatusCallback = null;
 let gpsButtonEl = null;
 
+// Compass heading state
+let currentHeading = null;
+let smoothedHeading = 0;
+let hasHeading = false;
+let compassPluginListener = null;
+let orientationHandler = null;
+
+function smoothHeading(newHeading) {
+  if (!hasHeading) {
+    hasHeading = true;
+    smoothedHeading = newHeading;
+    return newHeading;
+  }
+  const diff = ((newHeading - (smoothedHeading % 360) + 540) % 360) - 180;
+  smoothedHeading += diff;
+  return smoothedHeading;
+}
+
+export function updateUserHeading(heading) {
+  if (heading == null || isNaN(heading)) return;
+  currentHeading = heading;
+  const rot = smoothHeading(heading);
+
+  if (userGpsMarker) {
+    const markerEl = userGpsMarker.getElement();
+    if (markerEl) {
+      const beamEl = markerEl.querySelector('.user-compass-beam');
+      if (beamEl) {
+        beamEl.style.display = 'block';
+        beamEl.style.transform = `rotate(${rot}deg)`;
+      }
+    }
+  }
+}
+
 /**
  * Initializes or updates Leaflet map with track and waypoints
  */
@@ -319,6 +354,40 @@ export async function startGpsTracking(onStatusChange) {
     }
   }
 
+  // 1. Start native Android compass if available
+  if (Capacitor.isNativePlatform() && Capacitor.Plugins && Capacitor.Plugins.WikilocExtractor) {
+    try {
+      if (typeof Capacitor.Plugins.WikilocExtractor.startCompass === 'function') {
+        await Capacitor.Plugins.WikilocExtractor.startCompass();
+      }
+      compassPluginListener = await Capacitor.Plugins.WikilocExtractor.addListener('compassUpdate', (data) => {
+        if (data && data.heading != null) {
+          updateUserHeading(data.heading);
+        }
+      });
+    } catch (e) {
+      console.warn('Fallo al iniciar brújula nativa:', e);
+    }
+  }
+
+  // 2. Browser orientation listener (fallback / standard web)
+  orientationHandler = (e) => {
+    let heading = null;
+    if (e.webkitCompassHeading != null) {
+      heading = e.webkitCompassHeading;
+    } else if (e.alpha != null) {
+      heading = (360 - e.alpha) % 360;
+    }
+    if (heading != null && !isNaN(heading)) {
+      updateUserHeading(heading);
+    }
+  };
+
+  if (window.DeviceOrientationEvent) {
+    window.addEventListener('deviceorientationabsolute', orientationHandler, true);
+    window.addEventListener('deviceorientation', orientationHandler, true);
+  }
+
   notifyGpsStatus({ active: true, following: true, loading: true });
   isTrackingGps = true;
   followUser = true;
@@ -335,6 +404,11 @@ export async function startGpsTracking(onStatusChange) {
       const lon = position.coords.longitude;
       const accuracy = position.coords.accuracy || 12;
       const alt = position.coords.altitude;
+      const heading = position.coords.heading;
+
+      if (heading != null && !isNaN(heading) && (position.coords.speed || 0) > 0.6) {
+        updateUserHeading(heading);
+      }
 
       lastKnownLocation = { lat, lon, accuracy, alt };
 
@@ -392,6 +466,28 @@ export function stopGpsTracking() {
     gpsWatchId = null;
   }
 
+  // Remove compass listeners
+  if (compassPluginListener) {
+    try {
+      compassPluginListener.remove();
+    } catch (e) {}
+    compassPluginListener = null;
+  }
+  if (Capacitor.isNativePlatform() && Capacitor.Plugins && Capacitor.Plugins.WikilocExtractor) {
+    try {
+      if (typeof Capacitor.Plugins.WikilocExtractor.stopCompass === 'function') {
+        Capacitor.Plugins.WikilocExtractor.stopCompass();
+      }
+    } catch (e) {}
+  }
+  if (orientationHandler) {
+    window.removeEventListener('deviceorientationabsolute', orientationHandler, true);
+    window.removeEventListener('deviceorientation', orientationHandler, true);
+    orientationHandler = null;
+  }
+  currentHeading = null;
+  hasHeading = false;
+
   isTrackingGps = false;
   followUser = false;
 
@@ -441,7 +537,7 @@ function notifyGpsStatus(status) {
   }
 }
 
-function updateUserLocationMarker(lat, lon, accuracy) {
+export function updateUserLocationMarker(lat, lon, accuracy) {
   if (!currentMap) return;
   const latLng = [lat, lon];
 
@@ -460,17 +556,34 @@ function updateUserLocationMarker(lat, lon, accuracy) {
     userAccuracyCircle.setRadius(accuracy);
   }
 
-  // 2. Pulse Dot Marker
+  // 2. Pulse Dot Marker with Compass Directional Beam
   if (!userGpsMarker) {
+    const isBeamVisible = (currentHeading != null);
     const icon = L.divIcon({
       className: 'user-gps-container',
       html: `
-        <div class="user-gps-marker">
-          <div class="user-gps-pulse"></div>
+        <div class="user-gps-wrapper">
+          <div class="user-compass-beam" style="${isBeamVisible ? `transform: rotate(${smoothedHeading}deg); display: block;` : 'display: none;'}">
+            <svg class="compass-beam-svg" width="64" height="64" viewBox="0 0 64 64">
+              <defs>
+                <radialGradient id="compassBeamGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
+                  <stop offset="0%" stop-color="#0284c7" stop-opacity="0.55"/>
+                  <stop offset="60%" stop-color="#38bdf8" stop-opacity="0.22"/>
+                  <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.0"/>
+                </radialGradient>
+              </defs>
+              <path d="M 32 32 L 14 5 A 32 32 0 0 1 50 5 Z" fill="url(#compassBeamGrad)" />
+              <polygon points="32,10 38,24 32,20 26,24" fill="#0284c7" stroke="#ffffff" stroke-width="1.8" stroke-linejoin="round" />
+            </svg>
+          </div>
+          <div class="user-gps-marker">
+            <div class="user-gps-pulse"></div>
+          </div>
         </div>
       `,
-      iconSize: [20, 20],
-      iconAnchor: [10, 10]
+      iconSize: [64, 64],
+      iconAnchor: [32, 32],
+      popupAnchor: [0, -18]
     });
 
     userGpsMarker = L.marker(latLng, {

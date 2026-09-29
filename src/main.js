@@ -1,4 +1,5 @@
 import './style.css';
+import { Capacitor } from '@capacitor/core';
 import { SAMPLE_ROUTE } from './sampleData.js';
 import { fetchAndExtractTrail, parseWikilocHtml, computeMetricsFromCoordinates } from './wikilocExtractor.js';
 import { decodeTwkbBase64, buildGpxXml, downloadGpx, shareGpx } from './gpxExporter.js';
@@ -194,15 +195,58 @@ urlForm.addEventListener('submit', async (e) => {
   }
 });
 
+/**
+ * Reads clipboard text safely via native Android plugin or Web Clipboard API
+ */
+async function readClipboardText() {
+  if (Capacitor && Capacitor.isNativePlatform() && Capacitor.Plugins && Capacitor.Plugins.WikilocExtractor) {
+    try {
+      const res = await Capacitor.Plugins.WikilocExtractor.readClipboard();
+      if (res && res.value && typeof res.value === 'string' && res.value.trim().length > 0) {
+        return res.value.trim();
+      }
+    } catch (e) {
+      console.warn('Fallo leyendo portapapeles nativo:', e);
+    }
+  }
+
+  if (navigator.clipboard && navigator.clipboard.readText) {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (text && text.trim().length > 0) {
+        return text.trim();
+      }
+    } catch (e) {
+      console.warn('Fallo leyendo navigator.clipboard:', e);
+    }
+  }
+
+  return '';
+}
+
+/**
+ * Extracts clean Wikiloc URL from pasted text (e.g. if copied with title from Wikiloc app)
+ */
+function extractWikilocUrl(text) {
+  if (!text) return '';
+  const match = text.match(/https?:\/\/(?:[a-z]{2}\.)?wikiloc\.com\/[^\s]+/i);
+  if (match) return match[0];
+  const idMatch = text.match(/\b\d{7,10}\b/);
+  if (idMatch && !text.includes('http')) {
+    return `https://es.wikiloc.com/wikiloc/view.do?id=${idMatch[0]}`;
+  }
+  return text.trim();
+}
+
 // Event: Paste from Clipboard
 btnClipboardPaste.addEventListener('click', async () => {
   try {
-    if (navigator.clipboard && navigator.clipboard.readText) {
-      const text = await navigator.clipboard.readText();
-      if (text) {
-        wikilocUrlInput.value = text;
-        wikilocUrlInput.focus();
-      }
+    const rawText = await readClipboardText();
+    if (rawText) {
+      const cleanUrl = extractWikilocUrl(rawText);
+      wikilocUrlInput.value = cleanUrl || rawText;
+      wikilocUrlInput.dispatchEvent(new Event('input', { bubbles: true }));
+      wikilocUrlInput.focus();
     } else {
       wikilocUrlInput.focus();
     }
