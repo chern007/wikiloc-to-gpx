@@ -704,7 +704,8 @@ body {
   width: 64px;
   height: 64px;
   transform-origin: 32px 32px;
-  transition: transform 0.12s linear;
+  transition: transform 0.16s cubic-bezier(0.25, 0.1, 0.25, 1);
+  will-change: transform;
   pointer-events: none;
   z-index: 5;
 }

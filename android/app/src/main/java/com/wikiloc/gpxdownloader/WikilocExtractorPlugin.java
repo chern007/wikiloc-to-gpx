@@ -17,6 +17,8 @@ import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 import android.provider.MediaStore;
+import android.view.Display;
+import android.view.Surface;
 import android.view.ViewGroup;
 import android.webkit.CookieManager;
 import android.webkit.JavascriptInterface;
@@ -406,27 +408,100 @@ public class WikilocExtractorPlugin extends Plugin {
 
                 compassListener = new SensorEventListener() {
                     private long lastUpdate = 0;
+                    private float smoothedSin = 0f;
+                    private float smoothedCos = 0f;
+                    private boolean hasHeading = false;
+                    private float lastEmittedHeading = -1f;
 
                     @Override
                     public void onSensorChanged(SensorEvent event) {
                         long now = System.currentTimeMillis();
-                        if (now - lastUpdate < 50) return; // ~20 Hz
-                        lastUpdate = now;
+                        // 15 Hz throttle: 65ms between events is optimal for smooth UI animation without overloading bridge
+                        if (now - lastUpdate < 65) return;
 
                         float heading = 0f;
                         if (isRotationVector) {
                             float[] rotationMatrix = new float[9];
                             SensorManager.getRotationMatrixFromVector(rotationMatrix, event.values);
+
+                            // Remap coordinates based on display rotation (portrait / landscape)
+                            int rotation = Surface.ROTATION_0;
+                            try {
+                                if (getActivity() != null && getActivity().getWindowManager() != null) {
+                                    Display display = getActivity().getWindowManager().getDefaultDisplay();
+                                    if (display != null) {
+                                        rotation = display.getRotation();
+                                    }
+                                }
+                            } catch (Exception ignored) {}
+
+                            float[] screenMatrix = new float[9];
+                            switch (rotation) {
+                                case Surface.ROTATION_90:
+                                    SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_Y, SensorManager.AXIS_MINUS_X, screenMatrix);
+                                    break;
+                                case Surface.ROTATION_180:
+                                    SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_MINUS_X, SensorManager.AXIS_MINUS_Y, screenMatrix);
+                                    break;
+                                case Surface.ROTATION_270:
+                                    SensorManager.remapCoordinateSystem(rotationMatrix, SensorManager.AXIS_MINUS_Y, SensorManager.AXIS_X, screenMatrix);
+                                    break;
+                                case Surface.ROTATION_0:
+                                default:
+                                    System.arraycopy(rotationMatrix, 0, screenMatrix, 0, 9);
+                                    break;
+                            }
+
+                            // Tilt compensation: if device is held upright/standing (inclination > 55°)
+                            float[] finalMatrix = new float[9];
+                            if (Math.abs(screenMatrix[8]) < 0.57f) {
+                                SensorManager.remapCoordinateSystem(screenMatrix, SensorManager.AXIS_X, SensorManager.AXIS_Z, finalMatrix);
+                            } else {
+                                System.arraycopy(screenMatrix, 0, finalMatrix, 0, 9);
+                            }
+
                             float[] orientation = new float[3];
-                            SensorManager.getOrientation(rotationMatrix, orientation);
+                            SensorManager.getOrientation(finalMatrix, orientation);
                             heading = (float) Math.toDegrees(orientation[0]);
                             if (heading < 0) heading += 360f;
                         } else {
                             heading = event.values[0];
                         }
 
+                        // Vector Low-pass filtering (EMA on sin & cos) to prevent 360°/0° border discontinuity
+                        float rad = (float) Math.toRadians(heading);
+                        float s = (float) Math.sin(rad);
+                        float c = (float) Math.cos(rad);
+
+                        if (!hasHeading) {
+                            smoothedSin = s;
+                            smoothedCos = c;
+                            hasHeading = true;
+                        } else {
+                            float currentAvgAngle = (float) Math.toDegrees(Math.atan2(smoothedSin, smoothedCos));
+                            if (currentAvgAngle < 0) currentAvgAngle += 360f;
+                            float diff = Math.abs(((heading - currentAvgAngle + 540f) % 360f) - 180f);
+
+                            // Dynamic filter alpha: fast tracking on turns, steady dampening on hand tremors
+                            float alpha = (diff > 35f) ? 0.50f : (diff > 10f ? 0.30f : 0.18f);
+                            smoothedSin = smoothedSin + alpha * (s - smoothedSin);
+                            smoothedCos = smoothedCos + alpha * (c - smoothedCos);
+                        }
+
+                        float filteredHeading = (float) Math.toDegrees(Math.atan2(smoothedSin, smoothedCos));
+                        if (filteredHeading < 0) filteredHeading += 360f;
+
+                        // Deadband check: ignore changes under 0.5° to prevent micro-jitter
+                        float change = Math.abs(((filteredHeading - lastEmittedHeading + 540f) % 360f) - 180f);
+                        if (lastEmittedHeading >= 0 && change < 0.5f) {
+                            return;
+                        }
+
+                        lastUpdate = now;
+                        lastEmittedHeading = filteredHeading;
+
                         JSObject ret = new JSObject();
-                        ret.put("heading", Math.round(heading * 10f) / 10f);
+                        ret.put("heading", Math.round(filteredHeading * 10f) / 10f);
                         notifyListeners("compassUpdate", ret);
                     }
 

@@ -30,26 +30,45 @@ let gpsButtonEl = null;
 
 // Compass heading state
 let currentHeading = null;
-let smoothedHeading = 0;
+let currentUnwrappedHeading = 0;
 let hasHeading = false;
 let compassPluginListener = null;
 let orientationHandler = null;
 
-function smoothHeading(newHeading) {
+function processHeading(targetHeading) {
   if (!hasHeading) {
     hasHeading = true;
-    smoothedHeading = newHeading;
-    return newHeading;
+    currentUnwrappedHeading = targetHeading;
+    return targetHeading;
   }
-  const diff = ((newHeading - (smoothedHeading % 360) + 540) % 360) - 180;
-  smoothedHeading += diff;
-  return smoothedHeading;
+
+  // Normalize current rotation into [0, 360) and compute shortest difference (-180 to +180)
+  const normCurrent = ((currentUnwrappedHeading % 360) + 360) % 360;
+  const diff = ((targetHeading - normCurrent + 540) % 360) - 180;
+
+  // Deadband threshold: filter out micro-tremors from hands (< 0.7 degrees)
+  if (Math.abs(diff) < 0.7) {
+    return currentUnwrappedHeading;
+  }
+
+  // Dynamic low-pass filter: high stability on small movements, snappy on turns
+  let alpha;
+  if (Math.abs(diff) < 5) {
+    alpha = 0.22;
+  } else if (Math.abs(diff) < 25) {
+    alpha = 0.40;
+  } else {
+    alpha = 0.65;
+  }
+
+  currentUnwrappedHeading += diff * alpha;
+  return currentUnwrappedHeading;
 }
 
 export function updateUserHeading(heading) {
   if (heading == null || isNaN(heading)) return;
   currentHeading = heading;
-  const rot = smoothHeading(heading);
+  const rot = processHeading(heading);
 
   if (userGpsMarker) {
     const markerEl = userGpsMarker.getElement();
@@ -57,7 +76,7 @@ export function updateUserHeading(heading) {
       const beamEl = markerEl.querySelector('.user-compass-beam');
       if (beamEl) {
         beamEl.style.display = 'block';
-        beamEl.style.transform = `rotate(${rot}deg)`;
+        beamEl.style.transform = `rotate(${rot.toFixed(1)}deg)`;
       }
     }
   }
@@ -354,7 +373,8 @@ export async function startGpsTracking(onStatusChange) {
     }
   }
 
-  // 1. Start native Android compass if available
+  // 1. Start native Android compass if available (exclusive source)
+  let nativeCompassActive = false;
   if (Capacitor.isNativePlatform() && Capacitor.Plugins && Capacitor.Plugins.WikilocExtractor) {
     try {
       if (typeof Capacitor.Plugins.WikilocExtractor.startCompass === 'function') {
@@ -365,27 +385,33 @@ export async function startGpsTracking(onStatusChange) {
           updateUserHeading(data.heading);
         }
       });
+      nativeCompassActive = true;
     } catch (e) {
       console.warn('Fallo al iniciar brújula nativa:', e);
     }
   }
 
-  // 2. Browser orientation listener (fallback / standard web)
-  orientationHandler = (e) => {
-    let heading = null;
-    if (e.webkitCompassHeading != null) {
-      heading = e.webkitCompassHeading;
-    } else if (e.alpha != null) {
-      heading = (360 - e.alpha) % 360;
-    }
-    if (heading != null && !isNaN(heading)) {
-      updateUserHeading(heading);
-    }
-  };
+  // 2. Browser orientation listener (ONLY as fallback when native compass is NOT active)
+  if (!nativeCompassActive) {
+    orientationHandler = (e) => {
+      let heading = null;
+      if (e.webkitCompassHeading != null) {
+        heading = e.webkitCompassHeading;
+      } else if (e.alpha != null && (e.absolute === true || !window.chrome)) {
+        heading = (360 - e.alpha) % 360;
+      }
+      if (heading != null && !isNaN(heading)) {
+        updateUserHeading(heading);
+      }
+    };
 
-  if (window.DeviceOrientationEvent) {
-    window.addEventListener('deviceorientationabsolute', orientationHandler, true);
-    window.addEventListener('deviceorientation', orientationHandler, true);
+    if (window.DeviceOrientationEvent) {
+      if ('ondeviceorientationabsolute' in window) {
+        window.addEventListener('deviceorientationabsolute', orientationHandler, true);
+      } else {
+        window.addEventListener('deviceorientation', orientationHandler, true);
+      }
+    }
   }
 
   notifyGpsStatus({ active: true, following: true, loading: true });
@@ -563,7 +589,7 @@ export function updateUserLocationMarker(lat, lon, accuracy) {
       className: 'user-gps-container',
       html: `
         <div class="user-gps-wrapper">
-          <div class="user-compass-beam" style="${isBeamVisible ? `transform: rotate(${smoothedHeading}deg); display: block;` : 'display: none;'}">
+          <div class="user-compass-beam" style="${isBeamVisible ? `transform: rotate(${currentUnwrappedHeading.toFixed(1)}deg); display: block;` : 'display: none;'}">
             <svg class="compass-beam-svg" width="64" height="64" viewBox="0 0 64 64">
               <defs>
                 <radialGradient id="compassBeamGrad" cx="50%" cy="50%" r="50%" fx="50%" fy="50%">
