@@ -17,7 +17,12 @@
         <span class="logo-text">Wikiloc GPX</span>
         <span class="logo-badge">Pro</span>
       </a>
-      <div class="header-actions"></div>
+      <div class="header-actions">
+        <button type="button" id="btnHeaderOrientation" class="btn-header-ghost" title="Giro de pantalla (Bloqueado/Libre)">
+          <span id="headerOrientIcon">🔒</span>
+          <span id="headerOrientText">Giro bloqueado</span>
+        </button>
+      </div>
     </header>
 
     <!-- Hero Card with Nature Background -->
@@ -133,7 +138,22 @@
       </section>
 
       <!-- Map & Elevation Card -->
-      <section class="map-card">
+      <section class="map-card" id="mapCardSection">
+        <div id="mapFullscreenHeader" class="map-fullscreen-header">
+          <div class="fullscreen-title-box">
+            <span id="fullscreenRouteTitle" class="fullscreen-route-title">Recorrido de la Ruta</span>
+            <span id="fullscreenRouteStats" class="fullscreen-route-stats">-- km • +-- m</span>
+          </div>
+          <div class="fullscreen-actions">
+            <button type="button" id="btnFullscreenOrientation" class="fullscreen-btn-pill" title="Giro de pantalla">
+              <span id="fsOrientIcon">🔒</span>
+              <span id="fsOrientText">Fijo</span>
+            </button>
+            <button type="button" id="btnExitFullscreenTop" class="fullscreen-btn-pill exit-pill" title="Salir de pantalla completa">
+              <span>✕</span> Salir
+            </button>
+          </div>
+        </div>
         <div class="card-title-row">
           <h3 class="section-h3">🗺️ Recorrido en el Mapa</h3>
           <span id="trackpointsCounter" class="ele-stat-pill">0 puntos</span>

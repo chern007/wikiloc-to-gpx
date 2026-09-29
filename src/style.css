@@ -632,6 +632,142 @@ body {
   color: #ffffff !important;
 }
 
+.leaflet-custom-tools a.btn-fullscreen-toggle.active {
+  background-color: var(--forest-primary) !important;
+  color: #ffffff !important;
+}
+
+.leaflet-custom-tools a.btn-map-orientation.active {
+  background-color: #e0f2fe !important;
+  color: #0284c7 !important;
+}
+
+.btn-header-ghost.active-unlocked {
+  background: #e0f2fe !important;
+  color: #0284c7 !important;
+  border: 1px solid #bae6fd !important;
+}
+
+/* Fullscreen Map Mode */
+.map-card.fullscreen {
+  position: fixed !important;
+  inset: 0 !important;
+  top: 0 !important;
+  left: 0 !important;
+  width: 100vw !important;
+  height: 100vh !important;
+  height: 100dvh !important;
+  max-width: none !important;
+  border-radius: 0 !important;
+  border: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
+  z-index: 99999 !important;
+  background: #0f172a !important;
+  display: flex !important;
+  flex-direction: column !important;
+  box-shadow: none !important;
+}
+
+.map-card.fullscreen .card-title-row {
+  display: none !important;
+}
+
+.map-card.fullscreen #elevationProfileContainer {
+  display: none !important;
+}
+
+.map-card.fullscreen .map-container {
+  width: 100% !important;
+  height: 100% !important;
+  flex: 1 1 100% !important;
+  border-radius: 0 !important;
+  border: none !important;
+  margin-bottom: 0 !important;
+}
+
+/* Floating Fullscreen Header on Map */
+.map-fullscreen-header {
+  display: none;
+  position: absolute;
+  top: 14px;
+  left: 14px;
+  right: 14px;
+  z-index: 1000;
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-radius: var(--radius-pill);
+  padding: 8px 16px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  pointer-events: auto;
+}
+
+.map-card.fullscreen .map-fullscreen-header {
+  display: flex !important;
+}
+
+.fullscreen-title-box {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.fullscreen-route-title {
+  font-family: var(--font-heading);
+  font-size: 13px;
+  font-weight: 800;
+  color: var(--forest-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fullscreen-route-stats {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.fullscreen-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.fullscreen-btn-pill {
+  border: none;
+  background: var(--surface-alt);
+  color: var(--forest-primary);
+  font-size: 12px;
+  font-weight: 700;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.fullscreen-btn-pill:hover {
+  background: var(--sage-light);
+}
+
+.fullscreen-btn-pill.exit-pill {
+  background: #ef4444;
+  color: white;
+}
+
+.fullscreen-btn-pill.exit-pill:hover {
+  background: #dc2626;
+}
+
 .leaflet-custom-tools a.btn-gps-location.active svg {
   animation: gpsPulseSpin 2s infinite ease-in-out;
 }

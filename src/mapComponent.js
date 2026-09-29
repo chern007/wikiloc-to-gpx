@@ -36,6 +36,12 @@ let hasHeading = false;
 let compassPluginListener = null;
 let orientationHandler = null;
 
+// Fullscreen & Orientation state
+let isMapFullscreen = false;
+let fullscreenButtonEl = null;
+let isOrientationLocked = true;
+let mapOrientationButtonEl = null;
+
 function processHeading(targetHeading) {
   if (!hasHeading) {
     hasHeading = true;
@@ -96,13 +102,29 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
       attributionControl: false
     });
 
-    // Custom native Leaflet Control for Fit Route & GPS
+    // Custom native Leaflet Control for Fullscreen, Fit, Orientation & GPS
     const MapActionsControl = L.Control.extend({
       options: { position: 'bottomright' },
       onAdd: function() {
         const bar = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-custom-tools');
 
-        // 1. Fit Bounds (Zoom Extensión) button
+        // 1. Fullscreen Map button (Maximizar a pantalla completa)
+        const fullscreenBtn = L.DomUtil.create('a', 'leaflet-tool-btn btn-fullscreen-toggle', bar);
+        fullscreenBtn.href = '#';
+        fullscreenBtn.title = 'Maximizar mapa a pantalla completa';
+        fullscreenBtn.setAttribute('role', 'button');
+        fullscreenBtn.setAttribute('aria-label', 'Maximizar mapa a pantalla completa');
+        fullscreenBtn.innerHTML = `
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="15 3 21 3 21 9"/>
+            <polyline points="9 21 3 21 3 15"/>
+            <line x1="21" y1="3" x2="14" y2="10"/>
+            <line x1="3" y1="21" x2="10" y2="14"/>
+          </svg>
+        `;
+        fullscreenButtonEl = fullscreenBtn;
+
+        // 2. Fit Bounds (Zoom Extensión) button
         const fitBtn = L.DomUtil.create('a', 'leaflet-tool-btn btn-fit-bounds', bar);
         fitBtn.href = '#';
         fitBtn.title = 'Ver ruta completa (Zoom Extensión)';
@@ -114,7 +136,22 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
           </svg>
         `;
 
-        // 2. GPS Location button
+        // 3. Screen Orientation button (Bloqueo / Rotación libre)
+        const orientBtn = L.DomUtil.create('a', 'leaflet-tool-btn btn-map-orientation', bar);
+        orientBtn.href = '#';
+        orientBtn.title = 'Giro de pantalla: Bloqueado en vertical';
+        orientBtn.setAttribute('role', 'button');
+        orientBtn.setAttribute('aria-label', 'Giro de pantalla');
+        orientBtn.innerHTML = `
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="5" y="11" width="14" height="10" rx="2"/>
+            <circle cx="12" cy="16" r="1"/>
+            <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+          </svg>
+        `;
+        mapOrientationButtonEl = orientBtn;
+
+        // 4. GPS Location button
         const gpsBtn = L.DomUtil.create('a', 'leaflet-tool-btn btn-gps-location', bar);
         gpsBtn.href = '#';
         gpsBtn.title = 'Mi ubicación GPS / Seguir ruta';
@@ -129,16 +166,27 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
             <line x1="18" y1="12" x2="22" y2="12"/>
           </svg>
         `;
-
         gpsButtonEl = gpsBtn;
 
         L.DomEvent.disableClickPropagation(bar);
         L.DomEvent.disableScrollPropagation(bar);
 
+        L.DomEvent.on(fullscreenBtn, 'click', function(e) {
+          L.DomEvent.preventDefault(e);
+          L.DomEvent.stopPropagation(e);
+          toggleMapFullscreen();
+        });
+
         L.DomEvent.on(fitBtn, 'click', function(e) {
           L.DomEvent.preventDefault(e);
           L.DomEvent.stopPropagation(e);
           fitRouteBounds();
+        });
+
+        L.DomEvent.on(orientBtn, 'click', function(e) {
+          L.DomEvent.preventDefault(e);
+          L.DomEvent.stopPropagation(e);
+          toggleScreenOrientation();
         });
 
         L.DomEvent.on(gpsBtn, 'click', function(e) {
@@ -754,4 +802,198 @@ export function renderElevationProfile(containerId, coordinates) {
       </svg>
     </div>
   `;
+}
+
+/**
+ * Fullscreen Map Controller
+ */
+export function isMapFullscreenActive() {
+  return isMapFullscreen;
+}
+
+export function setFullscreenRouteInfo(title, distKm, eleM) {
+  const titleEl = document.getElementById('fullscreenRouteTitle');
+  const statsEl = document.getElementById('fullscreenRouteStats');
+  if (titleEl && title) titleEl.textContent = title;
+  if (statsEl) {
+    const parts = [];
+    if (distKm) parts.push(`${distKm} km`);
+    if (eleM) parts.push(`+${eleM} m`);
+    statsEl.textContent = parts.join(' • ') || 'Recorrido GPX';
+  }
+}
+
+export function toggleMapFullscreen() {
+  const mapCard = document.getElementById('mapCardSection') || document.querySelector('.map-card');
+  if (!mapCard) return;
+
+  isMapFullscreen = !isMapFullscreen;
+  if (isMapFullscreen) {
+    mapCard.classList.add('fullscreen');
+    try {
+      if (mapCard.requestFullscreen) {
+        mapCard.requestFullscreen().catch(() => {});
+      } else if (mapCard.webkitRequestFullscreen) {
+        mapCard.webkitRequestFullscreen();
+      }
+    } catch (e) {}
+
+    history.pushState({ wikilocMapFullscreen: true }, '');
+  } else {
+    mapCard.classList.remove('fullscreen');
+    try {
+      if (document.fullscreenElement || document.webkitFullscreenElement) {
+        if (document.exitFullscreen) document.exitFullscreen().catch(() => {});
+        else if (document.webkitExitFullscreen) document.webkitExitFullscreen();
+      }
+    } catch (e) {}
+  }
+
+  updateFullscreenUI(isMapFullscreen);
+
+  setTimeout(() => { if (currentMap) currentMap.invalidateSize(); }, 60);
+  setTimeout(() => { if (currentMap) currentMap.invalidateSize(); }, 280);
+}
+
+function updateFullscreenUI(isFullscreen) {
+  if (fullscreenButtonEl) {
+    fullscreenButtonEl.title = isFullscreen ? 'Salir de pantalla completa' : 'Maximizar mapa a pantalla completa';
+    fullscreenButtonEl.setAttribute('aria-label', fullscreenButtonEl.title);
+    if (isFullscreen) {
+      fullscreenButtonEl.classList.add('active');
+      fullscreenButtonEl.innerHTML = `
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 14 10 14 10 20"/>
+          <polyline points="20 10 14 10 14 4"/>
+          <line x1="14" y1="10" x2="21" y2="3"/>
+          <line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
+      `;
+    } else {
+      fullscreenButtonEl.classList.remove('active');
+      fullscreenButtonEl.innerHTML = `
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="15 3 21 3 21 9"/>
+          <polyline points="9 21 3 21 3 15"/>
+          <line x1="21" y1="3" x2="14" y2="10"/>
+          <line x1="3" y1="21" x2="10" y2="14"/>
+        </svg>
+      `;
+    }
+  }
+}
+
+// Global listeners for back button / Escape key
+window.addEventListener('popstate', () => {
+  if (isMapFullscreen) {
+    toggleMapFullscreen();
+  }
+});
+
+document.addEventListener('fullscreenchange', () => {
+  if (!document.fullscreenElement && !document.webkitFullscreenElement && isMapFullscreen) {
+    toggleMapFullscreen();
+  }
+});
+
+/**
+ * Screen Orientation Controller (Activar / Desactivar giro de la aplicación)
+ */
+export async function toggleScreenOrientation() {
+  isOrientationLocked = !isOrientationLocked;
+  const mode = isOrientationLocked ? 'portrait' : 'sensor';
+  localStorage.setItem('wikiloc_orientation_mode', mode);
+
+  if (Capacitor.isNativePlatform() && Capacitor.Plugins && Capacitor.Plugins.WikilocExtractor) {
+    try {
+      if (typeof Capacitor.Plugins.WikilocExtractor.setScreenOrientation === 'function') {
+        await Capacitor.Plugins.WikilocExtractor.setScreenOrientation({ orientation: mode });
+      }
+    } catch (e) {
+      console.warn('Fallo setScreenOrientation nativo:', e);
+    }
+  } else if (window.screen && window.screen.orientation) {
+    try {
+      if (mode === 'portrait' && window.screen.orientation.lock) {
+        await window.screen.orientation.lock('portrait').catch(() => {});
+      } else if (window.screen.orientation.unlock) {
+        window.screen.orientation.unlock();
+      }
+    } catch (e) {}
+  }
+
+  updateOrientationUI(isOrientationLocked);
+  return isOrientationLocked;
+}
+
+export async function initScreenOrientation() {
+  const saved = localStorage.getItem('wikiloc_orientation_mode') || 'portrait';
+  isOrientationLocked = (saved === 'portrait');
+  if (Capacitor.isNativePlatform() && Capacitor.Plugins && Capacitor.Plugins.WikilocExtractor) {
+    try {
+      if (typeof Capacitor.Plugins.WikilocExtractor.setScreenOrientation === 'function') {
+        await Capacitor.Plugins.WikilocExtractor.setScreenOrientation({ orientation: saved });
+      }
+    } catch (e) {}
+  }
+  updateOrientationUI(isOrientationLocked);
+}
+
+export function updateOrientationUI(isLocked) {
+  // 1. Header Button
+  const headerIcon = document.getElementById('headerOrientIcon');
+  const headerText = document.getElementById('headerOrientText');
+  const headerBtn = document.getElementById('btnHeaderOrientation');
+  if (headerIcon && headerText) {
+    headerIcon.textContent = isLocked ? '🔒' : '🔄';
+    headerText.textContent = isLocked ? 'Giro bloqueado' : 'Giro libre';
+    if (headerBtn) {
+      headerBtn.title = isLocked
+        ? 'Giro de pantalla: Bloqueado en vertical. Pulsa para permitir rotación libre.'
+        : 'Giro de pantalla: Rotación libre activa. Pulsa para bloquear en vertical.';
+      if (isLocked) {
+        headerBtn.classList.remove('active-unlocked');
+      } else {
+        headerBtn.classList.add('active-unlocked');
+      }
+    }
+  }
+
+  // 2. Fullscreen Header Button
+  const fsIcon = document.getElementById('fsOrientIcon');
+  const fsText = document.getElementById('fsOrientText');
+  const fsBtn = document.getElementById('btnFullscreenOrientation');
+  if (fsIcon && fsText) {
+    fsIcon.textContent = isLocked ? '🔒' : '🔄';
+    fsText.textContent = isLocked ? 'Fijo' : 'Libre';
+    if (fsBtn) {
+      fsBtn.title = isLocked
+        ? 'Giro de pantalla: Bloqueado en vertical'
+        : 'Giro de pantalla: Rotación libre activa';
+    }
+  }
+
+  // 3. Leaflet Map Control Button
+  if (mapOrientationButtonEl) {
+    mapOrientationButtonEl.title = isLocked
+      ? 'Giro de pantalla: Bloqueado en vertical'
+      : 'Giro de pantalla: Rotación libre activa';
+    if (isLocked) {
+      mapOrientationButtonEl.classList.remove('active');
+      mapOrientationButtonEl.innerHTML = `
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="5" y="11" width="14" height="10" rx="2"/>
+          <circle cx="12" cy="16" r="1"/>
+          <path d="M8 11V7a4 4 0 0 1 8 0v4"/>
+        </svg>
+      `;
+    } else {
+      mapOrientationButtonEl.classList.add('active');
+      mapOrientationButtonEl.innerHTML = `
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21.5 2v6h-6M2.5 22v-6h6M2 11.5a10 10 0 0 1 18.8-4.3M22 12.5a10 10 0 0 1-18.8 4.2"/>
+        </svg>
+      `;
+    }
+  }
 }

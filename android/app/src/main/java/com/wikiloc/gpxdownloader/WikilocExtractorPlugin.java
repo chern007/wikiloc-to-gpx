@@ -7,6 +7,7 @@ import android.content.Context;
 import android.content.ContentResolver;
 import android.content.ContentValues;
 import android.content.Intent;
+import android.content.pm.ActivityInfo;
 import android.hardware.Sensor;
 import android.hardware.SensorEvent;
 import android.hardware.SensorEventListener;
@@ -370,6 +371,53 @@ public class WikilocExtractorPlugin extends Plugin {
             } catch (Exception e) {
                 JSObject ret = new JSObject();
                 ret.put("value", "");
+                call.resolve(ret);
+            }
+        });
+    }
+
+    @PluginMethod
+    public void setScreenOrientation(PluginCall call) {
+        String orientation = call.getString("orientation", "portrait");
+        getActivity().runOnUiThread(() -> {
+            try {
+                if ("sensor".equalsIgnoreCase(orientation) || "auto".equalsIgnoreCase(orientation) || "unlocked".equalsIgnoreCase(orientation)) {
+                    getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_SENSOR);
+                } else if ("landscape".equalsIgnoreCase(orientation)) {
+                    getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE);
+                } else {
+                    getActivity().setRequestedOrientation(ActivityInfo.SCREEN_ORIENTATION_PORTRAIT);
+                }
+                JSObject ret = new JSObject();
+                ret.put("orientation", orientation);
+                ret.put("success", true);
+                call.resolve(ret);
+            } catch (Exception e) {
+                call.reject("Error al cambiar orientación: " + e.getMessage());
+            }
+        });
+    }
+
+    @PluginMethod
+    public void getScreenOrientation(PluginCall call) {
+        getActivity().runOnUiThread(() -> {
+            try {
+                int req = getActivity().getRequestedOrientation();
+                String mode = "portrait";
+                if (req == ActivityInfo.SCREEN_ORIENTATION_SENSOR ||
+                    req == ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR ||
+                    req == ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED) {
+                    mode = "sensor";
+                } else if (req == ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE ||
+                           req == ActivityInfo.SCREEN_ORIENTATION_SENSOR_LANDSCAPE) {
+                    mode = "landscape";
+                }
+                JSObject ret = new JSObject();
+                ret.put("orientation", mode);
+                call.resolve(ret);
+            } catch (Exception e) {
+                JSObject ret = new JSObject();
+                ret.put("orientation", "portrait");
                 call.resolve(ret);
             }
         });

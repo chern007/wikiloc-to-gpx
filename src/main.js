@@ -9,7 +9,12 @@ import {
   fitRouteBounds,
   focusPoi,
   toggleGpsTracking,
-  stopGpsTracking
+  stopGpsTracking,
+  toggleMapFullscreen,
+  isMapFullscreenActive,
+  setFullscreenRouteInfo,
+  toggleScreenOrientation,
+  initScreenOrientation
 } from './mapComponent.js';
 
 // Application State
@@ -97,6 +102,7 @@ async function displayRoute(trailData) {
     // 3. Render Leaflet Map & Elevation Profile
     renderRouteMap('routeMap', currentCoordinates, wpts);
     renderElevationProfile('elevationProfileContainer', currentCoordinates);
+    setFullscreenRouteInfo(trailData.name, dist > 0 ? dist.toFixed(2) : null, gain > 0 ? gain : null);
 
     // 4. Render POIs Grid (Cards matching the reference design)
     renderPoisCards(wpts);
@@ -301,6 +307,27 @@ btnShareGpx.addEventListener('click', async () => {
   }
 });
 
+
+// Screen Orientation & Fullscreen Top Bar Events
+const btnHeaderOrientation = document.getElementById('btnHeaderOrientation');
+if (btnHeaderOrientation) {
+  btnHeaderOrientation.addEventListener('click', toggleScreenOrientation);
+}
+
+const btnFullscreenOrientation = document.getElementById('btnFullscreenOrientation');
+if (btnFullscreenOrientation) {
+  btnFullscreenOrientation.addEventListener('click', toggleScreenOrientation);
+}
+
+const btnExitFullscreenTop = document.getElementById('btnExitFullscreenTop');
+if (btnExitFullscreenTop) {
+  btnExitFullscreenTop.addEventListener('click', () => {
+    if (isMapFullscreenActive()) toggleMapFullscreen();
+  });
+}
+
+// Initialize orientation preference on app start
+initScreenOrientation();
 
 // Expose for testing & dev inspection
 window.displayRoute = displayRoute;
