@@ -29,6 +29,16 @@
                 <data android:mimeType="text/plain" />
             </intent-filter>
 
+            <!-- Allows opening Wikiloc web links directly in Wikiloc GPX -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" android:host="*.wikiloc.com" />
+                <data android:scheme="https" android:host="*.wikiloc.com" />
+                <data android:scheme="http" android:host="wikiloc.com" />
+                <data android:scheme="https" android:host="wikiloc.com" />
+            </intent-filter>
         </activity>
 
         <provider

@@ -1,5 +1,6 @@
 package com.wikiloc.gpxdownloader;
 
+import android.content.Intent;
 import android.os.Bundle;
 import com.getcapacitor.BridgeActivity;
 
@@ -17,4 +18,15 @@ public class MainActivity extends BridgeActivity {
             getBridge().getWebView().getSettings().setGeolocationEnabled(true);
         }
     }
+
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        setIntent(intent);
+        WikilocExtractorPlugin plugin = WikilocExtractorPlugin.getInstance();
+        if (plugin != null) {
+            plugin.processIncomingIntent(intent, true);
+        }
+    }
 }
+

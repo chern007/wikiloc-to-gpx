@@ -173,21 +173,55 @@ function renderPoisCards(waypoints) {
   });
 }
 
-// Event: Submit URL Form
-urlForm.addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const url = wikilocUrlInput.value.trim();
+/**
+ * Extracts clean Wikiloc URL from shared or pasted text
+ */
+export function extractWikilocUrl(text) {
+  if (!text) return '';
+  const match = text.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)*wikiloc\.com\/[^\s"'<>]+/i);
+  if (match) {
+    return match[0].replace(/[.,;:!?()\]>]+$/, '');
+  }
+  const idMatch = text.match(/\b\d{7,10}\b/);
+  if (idMatch && !text.includes('http')) {
+    return `https://es.wikiloc.com/wikiloc/view.do?id=${idMatch[0]}`;
+  }
+  const genMatch = text.match(/https?:\/\/[^\s"'<>]+/i);
+  if (genMatch) {
+    return genMatch[0].replace(/[.,;:!?()\]>]+$/, '');
+  }
+  return text.trim();
+}
+
+/**
+ * Loads and displays a route from a Wikiloc URL.
+ * Populates the address bar input and extracts the track.
+ */
+export async function processRouteUrl(url) {
   if (!url) return;
+  const cleanUrl = extractWikilocUrl(url) || url.trim();
+  if (!cleanUrl) return;
+
+  wikilocUrlInput.value = cleanUrl;
+  wikilocUrlInput.dispatchEvent(new Event('input', { bubbles: true }));
 
   try {
     showStatus('Extrayendo ruta de Wikiloc...');
-    const trailData = await fetchAndExtractTrail(url, (status) => showStatus(status));
+    const trailData = await fetchAndExtractTrail(cleanUrl, (status) => showStatus(status));
     await displayRoute(trailData);
   } catch (err) {
     hideStatus();
     console.error('Error al extraer ruta:', err);
     alert('No se pudo extraer la ruta: ' + err.message);
   }
+}
+
+// Event: Submit URL Form
+urlForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const url = wikilocUrlInput.value.trim();
+  if (!url) return;
+  await processRouteUrl(url);
 });
 
 /**
@@ -217,20 +251,6 @@ async function readClipboardText() {
   }
 
   return '';
-}
-
-/**
- * Extracts clean Wikiloc URL from pasted text (e.g. if copied with title from Wikiloc app)
- */
-function extractWikilocUrl(text) {
-  if (!text) return '';
-  const match = text.match(/https?:\/\/(?:[a-z]{2}\.)?wikiloc\.com\/[^\s]+/i);
-  if (match) return match[0];
-  const idMatch = text.match(/\b\d{7,10}\b/);
-  if (idMatch && !text.includes('http')) {
-    return `https://es.wikiloc.com/wikiloc/view.do?id=${idMatch[0]}`;
-  }
-  return text.trim();
 }
 
 // Event: Paste from Clipboard
@@ -329,6 +349,56 @@ if (btnExitFullscreenTop) {
 // Initialize orientation preference on app start
 initScreenOrientation();
 
+/**
+ * Handles incoming shared URLs from official Wikiloc app or Android system share sheet
+ */
+async function initSharedIntentListener() {
+  // 1. Check URL parameters (useful for Web Share Target or browser testing)
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const sharedParam = params.get('url') || params.get('text');
+    if (sharedParam) {
+      console.log('Ruta recibida por parámetro URL:', sharedParam);
+      await processRouteUrl(sharedParam);
+    }
+  } catch (e) {}
+
+  // 2. Native Capacitor WikilocExtractor Plugin
+  if (Capacitor && Capacitor.isNativePlatform() && Capacitor.Plugins && Capacitor.Plugins.WikilocExtractor) {
+    const plugin = Capacitor.Plugins.WikilocExtractor;
+
+    // A. Dynamic listener if app was already running when user shared from Wikiloc
+    if (typeof plugin.addListener === 'function') {
+      try {
+        await plugin.addListener('sharedUrlReceived', async (data) => {
+          if (data && data.url) {
+            console.log('Intent recibido en caliente desde Wikiloc:', data.url);
+            await processRouteUrl(data.url);
+          }
+        });
+      } catch (e) {
+        console.warn('No se pudo registrar listener sharedUrlReceived:', e);
+      }
+    }
+
+    // B. Check if app was cold-started by sharing from Wikiloc
+    try {
+      if (typeof plugin.getSharedUrl === 'function') {
+        const res = await plugin.getSharedUrl();
+        if (res && res.hasUrl && res.url) {
+          console.log('Intent recibido al iniciar app desde Wikiloc:', res.url);
+          await processRouteUrl(res.url);
+        }
+      }
+    } catch (e) {
+      console.warn('Error al verificar getSharedUrl:', e);
+    }
+  }
+}
+
+initSharedIntentListener();
+
 // Expose for testing & dev inspection
+window.processRouteUrl = processRouteUrl;
 window.displayRoute = displayRoute;
 window.SAMPLE_ROUTE = SAMPLE_ROUTE;

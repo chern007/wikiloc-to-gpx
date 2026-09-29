@@ -47,6 +47,8 @@ import java.io.FileOutputStream;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @CapacitorPlugin(
     name = "WikilocExtractor",
@@ -61,6 +63,31 @@ import java.util.concurrent.atomic.AtomicBoolean;
     }
 )
 public class WikilocExtractorPlugin extends Plugin {
+
+    private static WikilocExtractorPlugin instance = null;
+    private static String lastSharedUrl = null;
+    private static String lastSharedText = null;
+    private static long lastIntentTimestamp = 0;
+    private static String lastProcessedIntentData = null;
+
+    public static WikilocExtractorPlugin getInstance() {
+        return instance;
+    }
+
+    @Override
+    public void load() {
+        super.load();
+        instance = this;
+        if (getActivity() != null && getActivity().getIntent() != null) {
+            processIncomingIntent(getActivity().getIntent(), false);
+        }
+    }
+
+    @Override
+    protected void handleOnNewIntent(Intent intent) {
+        super.handleOnNewIntent(intent);
+        processIncomingIntent(intent, true);
+    }
 
     private Dialog activeDialog = null;
     private WebView activeWebView = null;
@@ -423,6 +450,120 @@ public class WikilocExtractorPlugin extends Plugin {
         });
     }
 
+    @PluginMethod
+    public void getSharedUrl(PluginCall call) {
+        JSObject ret = new JSObject();
+        if (lastSharedUrl != null && !lastSharedUrl.isEmpty()) {
+            ret.put("hasUrl", true);
+            ret.put("url", lastSharedUrl);
+            ret.put("rawText", lastSharedText != null ? lastSharedText : "");
+            lastSharedUrl = null;
+            lastSharedText = null;
+        } else {
+            ret.put("hasUrl", false);
+            ret.put("url", "");
+            ret.put("rawText", "");
+        }
+        call.resolve(ret);
+    }
+
+    @PluginMethod
+    public void clearSharedUrl(PluginCall call) {
+        lastSharedUrl = null;
+        lastSharedText = null;
+        JSObject ret = new JSObject();
+        ret.put("success", true);
+        call.resolve(ret);
+    }
+
+    public void processIncomingIntent(Intent intent, boolean isNewIntent) {
+        if (intent == null) return;
+        String action = intent.getAction();
+        if (action == null) return;
+
+        String candidateText = null;
+
+        if (Intent.ACTION_SEND.equals(action)) {
+            if (intent.hasExtra(Intent.EXTRA_TEXT)) {
+                candidateText = intent.getStringExtra(Intent.EXTRA_TEXT);
+            }
+            if ((candidateText == null || candidateText.isEmpty()) && intent.getClipData() != null && intent.getClipData().getItemCount() > 0) {
+                CharSequence cs = intent.getClipData().getItemAt(0).getText();
+                if (cs != null) {
+                    candidateText = cs.toString();
+                }
+            }
+        } else if (Intent.ACTION_VIEW.equals(action)) {
+            if (intent.getDataString() != null) {
+                candidateText = intent.getDataString();
+            }
+        }
+
+        if (candidateText == null || candidateText.trim().isEmpty()) {
+            return;
+        }
+
+        String extractedUrl = extractWikilocUrlFromText(candidateText);
+        if (extractedUrl == null || extractedUrl.isEmpty()) {
+            extractedUrl = candidateText.trim();
+        }
+
+        long now = System.currentTimeMillis();
+        if (extractedUrl.equals(lastProcessedIntentData) && (now - lastIntentTimestamp < 1500)) {
+            return;
+        }
+        lastProcessedIntentData = extractedUrl;
+        lastIntentTimestamp = now;
+
+        lastSharedUrl = extractedUrl;
+        lastSharedText = candidateText;
+
+        if (isNewIntent) {
+            final String finalUrl = extractedUrl;
+            final String finalText = candidateText;
+            new Handler(Looper.getMainLooper()).post(() -> {
+                JSObject ret = new JSObject();
+                ret.put("url", finalUrl);
+                ret.put("rawText", finalText);
+                notifyListeners("sharedUrlReceived", ret);
+            });
+        }
+    }
+
+    public static String extractWikilocUrlFromText(String text) {
+        if (text == null || text.trim().isEmpty()) return null;
+        try {
+            Pattern pattern = Pattern.compile(
+                "https?://(?:[a-zA-Z0-9-]+\\.)*wikiloc\\.com/[^\\s\"'<>]+",
+                Pattern.CASE_INSENSITIVE
+            );
+            Matcher matcher = pattern.matcher(text);
+            if (matcher.find()) {
+                String url = matcher.group();
+                return url.replaceAll("[.,;:!?()\\]>]+$", "");
+            }
+
+            Pattern idPattern = Pattern.compile("\\b(\\d{7,10})\\b");
+            Matcher idMatcher = idPattern.matcher(text);
+            if (idMatcher.find() && !text.contains("http")) {
+                return "https://es.wikiloc.com/wikiloc/view.do?id=" + idMatcher.group(1);
+            }
+
+            Pattern genPattern = Pattern.compile(
+                "https?://[^\\s\"'<>]+",
+                Pattern.CASE_INSENSITIVE
+            );
+            Matcher genMatcher = genPattern.matcher(text);
+            if (genMatcher.find()) {
+                String url = genMatcher.group();
+                return url.replaceAll("[.,;:!?()\\]>]+$", "");
+            }
+        } catch (Exception e) {
+            // fallback
+        }
+        return null;
+    }
+
     private SensorManager sensorManager = null;
     private SensorEventListener compassListener = null;
 
@@ -587,6 +728,9 @@ public class WikilocExtractorPlugin extends Plugin {
     @Override
     protected void handleOnDestroy() {
         super.handleOnDestroy();
+        if (instance == this) {
+            instance = null;
+        }
         if (sensorManager != null && compassListener != null) {
             sensorManager.unregisterListener(compassListener);
             compassListener = null;
