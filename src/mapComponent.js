@@ -946,11 +946,11 @@ export function updateOrientationUI(isLocked) {
   const headerBtn = document.getElementById('btnHeaderOrientation');
   if (headerIcon && headerText) {
     headerIcon.textContent = isLocked ? '🔒' : '🔄';
-    headerText.textContent = isLocked ? 'Giro bloqueado' : 'Giro libre';
+    headerText.textContent = isLocked ? 'Giro fijo' : 'Giro libre';
     if (headerBtn) {
       headerBtn.title = isLocked
-        ? 'Giro de pantalla: Bloqueado en vertical. Pulsa para permitir rotación libre.'
-        : 'Giro de pantalla: Rotación libre activa. Pulsa para bloquear en vertical.';
+        ? 'Giro de pantalla: Bloqueado en vertical (Fijo). Pulsa para permitir rotación libre.'
+        : 'Giro de pantalla: Rotación libre activa. Pulsa para fijar en vertical.';
       if (isLocked) {
         headerBtn.classList.remove('active-unlocked');
       } else {

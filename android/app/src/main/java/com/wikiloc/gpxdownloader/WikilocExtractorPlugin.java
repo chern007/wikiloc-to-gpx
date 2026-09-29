@@ -533,8 +533,25 @@ public class WikilocExtractorPlugin extends Plugin {
     public static String extractWikilocUrlFromText(String text) {
         if (text == null || text.trim().isEmpty()) return null;
         try {
+            // 1. Check loc.wiki short URL: https://loc.wiki/t/4071494?h=...
+            Pattern locWikiPattern = Pattern.compile(
+                "https?://(?:[a-zA-Z0-9-]+\\.)*loc\\.wiki/t/(\\d+)(\\?[^\"'\\s]*)?",
+                Pattern.CASE_INSENSITIVE
+            );
+            Matcher locMatcher = locWikiPattern.matcher(text);
+            if (locMatcher.find()) {
+                String id = locMatcher.group(1);
+                String query = locMatcher.group(2);
+                if (query != null && !query.isEmpty()) {
+                    return "https://www.wikiloc.com/wikiloc/open-trail-link.do?id=" + id + "&" + query.replaceFirst("^\\?", "");
+                } else {
+                    return "https://es.wikiloc.com/wikiloc/view.do?id=" + id;
+                }
+            }
+
+            // 2. Generic wikiloc.com or loc.wiki URL
             Pattern pattern = Pattern.compile(
-                "https?://(?:[a-zA-Z0-9-]+\\.)*wikiloc\\.com/[^\\s\"'<>]+",
+                "https?://(?:[a-zA-Z0-9-]+\\.)*(?:wikiloc\\.com|loc\\.wiki)/[^\\s\"'<>]+",
                 Pattern.CASE_INSENSITIVE
             );
             Matcher matcher = pattern.matcher(text);
@@ -543,12 +560,14 @@ public class WikilocExtractorPlugin extends Plugin {
                 return url.replaceAll("[.,;:!?()\\]>]+$", "");
             }
 
-            Pattern idPattern = Pattern.compile("\\b(\\d{7,10})\\b");
+            // 3. Numeric ID
+            Pattern idPattern = Pattern.compile("\\b(\\d{6,11})\\b");
             Matcher idMatcher = idPattern.matcher(text);
             if (idMatcher.find() && !text.contains("http")) {
                 return "https://es.wikiloc.com/wikiloc/view.do?id=" + idMatcher.group(1);
             }
 
+            // 4. Any generic URL
             Pattern genPattern = Pattern.compile(
                 "https?://[^\\s\"'<>]+",
                 Pattern.CASE_INSENSITIVE

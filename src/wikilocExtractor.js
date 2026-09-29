@@ -108,21 +108,33 @@ export function parseWikilocHtml(html, originalUrl = '') {
 }
 
 /**
- * Validates and extracts trail ID or normalized URL from input
+ * Validates and extracts trail ID or normalized URL from input.
+ * Resolves shortened Wikiloc links (loc.wiki/t/...) into canonical Wikiloc URLs.
  */
 export function normalizeWikilocUrl(input) {
   if (!input) return null;
   const trimmed = input.trim();
   
-  // If user pasted a clean ID
+  // If user pasted a clean numeric ID
   if (/^\d{6,11}$/.test(trimmed)) {
     return `https://es.wikiloc.com/wikiloc/view.do?id=${trimmed}`;
   }
 
-  // URL matching
-  const urlMatch = trimmed.match(/https?:\/\/(?:[a-z]{2}\.)?wikiloc\.com\/[^\s]+/i);
+  // Handle loc.wiki short URL: https://loc.wiki/t/4071494?h=...
+  const locWikiMatch = trimmed.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)*loc\.wiki\/t\/(\d+)(\?[^"'\s]*)?/i);
+  if (locWikiMatch) {
+    const id = locWikiMatch[1];
+    const query = locWikiMatch[2] ? locWikiMatch[2].replace(/^\?/, '') : '';
+    if (query) {
+      return `https://www.wikiloc.com/wikiloc/open-trail-link.do?id=${id}&${query}`;
+    }
+    return `https://es.wikiloc.com/wikiloc/view.do?id=${id}`;
+  }
+
+  // Generic wikiloc.com or loc.wiki URL matching
+  const urlMatch = trimmed.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)*(?:wikiloc\.com|loc\.wiki)\/[^\s"'<>]+/i);
   if (urlMatch) {
-    return urlMatch[0];
+    return urlMatch[0].replace(/[.,;:!?()\]>]+$/, '');
   }
 
   return null;

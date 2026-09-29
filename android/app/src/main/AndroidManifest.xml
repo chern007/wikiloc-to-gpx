@@ -38,6 +38,10 @@
                 <data android:scheme="https" android:host="*.wikiloc.com" />
                 <data android:scheme="http" android:host="wikiloc.com" />
                 <data android:scheme="https" android:host="wikiloc.com" />
+                <data android:scheme="http" android:host="loc.wiki" />
+                <data android:scheme="https" android:host="loc.wiki" />
+                <data android:scheme="http" android:host="*.loc.wiki" />
+                <data android:scheme="https" android:host="*.loc.wiki" />
             </intent-filter>
         </activity>
 

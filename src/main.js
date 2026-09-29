@@ -174,22 +174,41 @@ function renderPoisCards(waypoints) {
 }
 
 /**
- * Extracts clean Wikiloc URL from shared or pasted text
+ * Extracts clean Wikiloc URL from shared or pasted text,
+ * resolving shortened loc.wiki links to canonical Wikiloc URLs.
  */
 export function extractWikilocUrl(text) {
   if (!text) return '';
-  const match = text.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)*wikiloc\.com\/[^\s"'<>]+/i);
+
+  // 1. Check loc.wiki short URL: https://loc.wiki/t/4071494?h=...
+  const locWikiMatch = text.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)*loc\.wiki\/t\/(\d+)(\?[^"'\s]*)?/i);
+  if (locWikiMatch) {
+    const id = locWikiMatch[1];
+    const query = locWikiMatch[2] ? locWikiMatch[2].replace(/^\?/, '') : '';
+    if (query) {
+      return `https://www.wikiloc.com/wikiloc/open-trail-link.do?id=${id}&${query}`;
+    }
+    return `https://es.wikiloc.com/wikiloc/view.do?id=${id}`;
+  }
+
+  // 2. Standard wikiloc.com or loc.wiki matching
+  const match = text.match(/https?:\/\/(?:[a-zA-Z0-9-]+\.)*(?:wikiloc\.com|loc\.wiki)\/[^\s"'<>]+/i);
   if (match) {
     return match[0].replace(/[.,;:!?()\]>]+$/, '');
   }
-  const idMatch = text.match(/\b\d{7,10}\b/);
+
+  // 3. Numeric ID
+  const idMatch = text.match(/\b\d{6,11}\b/);
   if (idMatch && !text.includes('http')) {
     return `https://es.wikiloc.com/wikiloc/view.do?id=${idMatch[0]}`;
   }
+
+  // 4. Any generic URL
   const genMatch = text.match(/https?:\/\/[^\s"'<>]+/i);
   if (genMatch) {
     return genMatch[0].replace(/[.,;:!?()\]>]+$/, '');
   }
+
   return text.trim();
 }
 
