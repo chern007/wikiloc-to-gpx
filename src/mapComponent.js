@@ -26,6 +26,7 @@ let isTrackingGps = false;
 let followUser = true;
 let lastKnownLocation = null;
 let gpsStatusCallback = null;
+let gpsButtonEl = null;
 
 /**
  * Initializes or updates Leaflet map with track and waypoints
@@ -127,8 +128,16 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
     currentTrackLayer = L.featureGroup().addTo(currentMap);
     currentMarkersLayer = L.featureGroup().addTo(currentMap);
   } else {
-    currentTrackLayer.clearLayers();
-    currentMarkersLayer.clearLayers();
+    if (!currentTrackLayer) {
+      currentTrackLayer = L.featureGroup().addTo(currentMap);
+    } else {
+      currentTrackLayer.clearLayers();
+    }
+    if (!currentMarkersLayer) {
+      currentMarkersLayer = L.featureGroup().addTo(currentMap);
+    } else {
+      currentMarkersLayer.clearLayers();
+    }
     poiMarkersMap.clear();
     if (cursorMarker) {
       cursorMarker.remove();
