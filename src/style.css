@@ -610,79 +610,72 @@ body {
   color: var(--forest-primary);
 }
 
-.map-wrapper {
-  position: relative;
-  width: 100%;
-  margin-bottom: 20px;
-}
-
 .map-container {
   height: 440px;
   width: 100%;
   border-radius: var(--radius-inner);
   overflow: hidden;
   box-shadow: inset 0 2px 8px rgba(0, 0, 0, 0.05);
+  margin-bottom: 20px;
   border: 1px solid var(--surface-border);
 }
 
-/* Floating Controls over Leaflet Map */
-.map-floating-bar {
-  position: absolute;
-  top: 14px;
-  left: 14px;
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-  pointer-events: none;
+/* Custom Native Leaflet Tools (stacked on the right side) */
+.leaflet-custom-tools {
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.35) !important;
+  border-radius: 4px !important;
+  overflow: hidden !important;
+  margin-bottom: 8px !important;
 }
 
-.map-floating-btn {
-  pointer-events: auto;
-  background: rgba(255, 255, 255, 0.94);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  border: 1px solid rgba(39, 77, 46, 0.22);
-  color: var(--forest-primary);
-  font-family: var(--font-body);
-  font-size: 13px;
-  font-weight: 700;
-  padding: 8px 14px;
-  border-radius: var(--radius-pill);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12);
-  transition: all 0.2s ease;
+.leaflet-custom-tools a.leaflet-tool-btn {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  width: 30px !important;
+  height: 30px !important;
+  line-height: 30px !important;
+  background-color: #ffffff !important;
+  color: var(--forest-primary) !important;
+  text-decoration: none !important;
+  border-bottom: 1px solid #e2e8f0 !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
 }
 
-.map-floating-btn:hover {
-  background: white;
-  transform: translateY(-1px);
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.18);
-  border-color: var(--forest-primary);
+.leaflet-touch .leaflet-custom-tools a.leaflet-tool-btn {
+  width: 30px !important;
+  height: 30px !important;
+  line-height: 30px !important;
 }
 
-.map-floating-btn:active {
-  transform: translateY(1px);
+.leaflet-custom-tools a.leaflet-tool-btn:last-child {
+  border-bottom: none !important;
 }
 
-.map-floating-btn.active {
-  background: var(--forest-primary);
-  color: white;
-  border-color: var(--forest-primary);
-  box-shadow: 0 4px 14px rgba(39, 77, 46, 0.4);
+.leaflet-custom-tools a.leaflet-tool-btn:hover {
+  background-color: #f3f6ee !important;
+  color: var(--forest-dark) !important;
 }
 
-.map-floating-btn.active .btn-icon {
-  animation: pulse-spin 2s infinite ease-in-out;
+/* GPS Button States */
+.leaflet-custom-tools a.btn-gps-location.active {
+  background-color: #0284c7 !important;
+  color: #ffffff !important;
 }
 
-@keyframes pulse-spin {
+.leaflet-custom-tools a.btn-gps-location.following {
+  background-color: #274D2E !important;
+  color: #ffffff !important;
+}
+
+.leaflet-custom-tools a.btn-gps-location.active svg {
+  animation: gpsPulseSpin 2s infinite ease-in-out;
+}
+
+@keyframes gpsPulseSpin {
   0% { transform: scale(1); }
-  50% { transform: scale(1.25); }
+  50% { transform: scale(1.15); }
   100% { transform: scale(1); }
 }
 

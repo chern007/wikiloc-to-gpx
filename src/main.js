@@ -39,11 +39,6 @@ const trackpointsCounter = document.getElementById('trackpointsCounter');
 const poisCounterBadge = document.getElementById('poisCounterBadge');
 const labelWptsCount = document.getElementById('labelWptsCount');
 
-const btnFitRoute = document.getElementById('btnFitRoute');
-const btnToggleGps = document.getElementById('btnToggleGps');
-const gpsIcon = document.getElementById('gpsIcon');
-const gpsText = document.getElementById('gpsText');
-
 const btnDownloadGpx = document.getElementById('btnDownloadGpx');
 const btnShareGpx = document.getElementById('btnShareGpx');
 const chkIncludeWpts = document.getElementById('chkIncludeWpts');
@@ -209,38 +204,6 @@ btnClipboardPaste.addEventListener('click', async () => {
   }
 });
 
-// Event: Floating Map Controls (Fit Route Bounds)
-if (btnFitRoute) {
-  btnFitRoute.addEventListener('click', () => {
-    fitRouteBounds();
-  });
-}
-
-// Event: Floating Map Controls (GPS Geolocation Tracking)
-if (btnToggleGps) {
-  btnToggleGps.addEventListener('click', async () => {
-    await toggleGpsTracking((status) => {
-      if (status.active) {
-        btnToggleGps.classList.add('active');
-        if (status.loading) {
-          if (gpsIcon) gpsIcon.textContent = '⏳';
-          if (gpsText) gpsText.textContent = 'Buscando GPS...';
-        } else if (status.following) {
-          if (gpsIcon) gpsIcon.textContent = '🎯';
-          if (gpsText) gpsText.textContent = 'Siguiendo ruta';
-        } else {
-          if (gpsIcon) gpsIcon.textContent = '📍';
-          if (gpsText) gpsText.textContent = 'Centrar en mí';
-        }
-      } else {
-        btnToggleGps.classList.remove('active');
-        if (gpsIcon) gpsIcon.textContent = '📍';
-        if (gpsText) gpsText.textContent = 'Mi Ubicación';
-      }
-    });
-  });
-}
-
 // Event: Download GPX button
 btnDownloadGpx.addEventListener('click', async () => {
   if (!currentTrailData || !currentCoordinates) {
@@ -332,3 +295,7 @@ btnProcessHtml.addEventListener('click', async () => {
     alert('Error al procesar el código HTML: ' + err.message);
   }
 });
+
+// Expose for testing & dev inspection
+window.displayRoute = displayRoute;
+window.SAMPLE_ROUTE = SAMPLE_ROUTE;

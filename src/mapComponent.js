@@ -40,6 +40,62 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
       attributionControl: false
     });
 
+    // Custom native Leaflet Control for Fit Route & GPS
+    const MapActionsControl = L.Control.extend({
+      options: { position: 'bottomright' },
+      onAdd: function() {
+        const bar = L.DomUtil.create('div', 'leaflet-bar leaflet-control leaflet-custom-tools');
+
+        // 1. Fit Bounds (Zoom Extensión) button
+        const fitBtn = L.DomUtil.create('a', 'leaflet-tool-btn btn-fit-bounds', bar);
+        fitBtn.href = '#';
+        fitBtn.title = 'Ver ruta completa (Zoom Extensión)';
+        fitBtn.setAttribute('role', 'button');
+        fitBtn.setAttribute('aria-label', 'Ver ruta completa');
+        fitBtn.innerHTML = `
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/>
+          </svg>
+        `;
+
+        // 2. GPS Location button
+        const gpsBtn = L.DomUtil.create('a', 'leaflet-tool-btn btn-gps-location', bar);
+        gpsBtn.href = '#';
+        gpsBtn.title = 'Mi ubicación GPS / Seguir ruta';
+        gpsBtn.setAttribute('role', 'button');
+        gpsBtn.setAttribute('aria-label', 'Mi ubicación GPS');
+        gpsBtn.innerHTML = `
+          <svg class="gps-svg-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <line x1="12" y1="2" x2="12" y2="6"/>
+            <line x1="12" y1="18" x2="12" y2="22"/>
+            <line x1="2" y1="12" x2="6" y2="12"/>
+            <line x1="18" y1="12" x2="22" y2="12"/>
+          </svg>
+        `;
+
+        gpsButtonEl = gpsBtn;
+
+        L.DomEvent.disableClickPropagation(bar);
+        L.DomEvent.disableScrollPropagation(bar);
+
+        L.DomEvent.on(fitBtn, 'click', function(e) {
+          L.DomEvent.preventDefault(e);
+          L.DomEvent.stopPropagation(e);
+          fitRouteBounds();
+        });
+
+        L.DomEvent.on(gpsBtn, 'click', function(e) {
+          L.DomEvent.preventDefault(e);
+          L.DomEvent.stopPropagation(e);
+          toggleGpsTracking();
+        });
+
+        return bar;
+      }
+    });
+
+    new MapActionsControl().addTo(currentMap);
     L.control.zoom({ position: 'bottomright' }).addTo(currentMap);
     L.control.attribution({ position: 'bottomleft', prefix: false })
       .addAttribution('&copy; <a href="https://openstreetmap.org">OSM</a> | OpenTopoMap')
@@ -354,6 +410,23 @@ function handleUserMapDrag() {
 }
 
 function notifyGpsStatus(status) {
+  if (gpsButtonEl) {
+    if (status.active) {
+      gpsButtonEl.classList.add('active');
+      if (status.following) {
+        gpsButtonEl.classList.add('following');
+        gpsButtonEl.title = 'Siguiendo ruta en tiempo real (Toca para pausar)';
+      } else {
+        gpsButtonEl.classList.remove('following');
+        gpsButtonEl.title = 'Centrar en mi ubicación';
+      }
+    } else {
+      gpsButtonEl.classList.remove('active');
+      gpsButtonEl.classList.remove('following');
+      gpsButtonEl.title = 'Mi ubicación GPS / Seguir ruta';
+    }
+  }
+
   if (typeof gpsStatusCallback === 'function') {
     gpsStatusCallback(status);
   }
