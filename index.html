@@ -59,6 +59,11 @@
           <span>⚡</span> Obtener GPX
         </button>
       </form>
+      <div class="sample-link-wrapper">
+        <button type="button" id="btnLoadSampleRoute" class="btn-sample-link" title="Cargar ruta de muestra">
+          🌲 ¿Quieres probar la app? Cargar ruta de ejemplo
+        </button>
+      </div>
     </div>
 
 
@@ -145,12 +150,16 @@
             <span id="fullscreenRouteStats" class="fullscreen-route-stats">-- km • +-- m</span>
           </div>
           <div class="fullscreen-actions">
+            <button type="button" id="btnFullscreenAutoCenter" class="fullscreen-btn-pill auto-center-pill" title="Centrado automático: Activar seguimiento">
+              <span id="fsAutoCenterIcon">🧭</span>
+              <span id="fsAutoCenterText" class="pill-label">Seguir</span>
+            </button>
             <button type="button" id="btnFullscreenOrientation" class="fullscreen-btn-pill" title="Giro de pantalla">
               <span id="fsOrientIcon">🔒</span>
-              <span id="fsOrientText">Fijo</span>
+              <span id="fsOrientText" class="pill-label">Fijo</span>
             </button>
             <button type="button" id="btnExitFullscreenTop" class="fullscreen-btn-pill exit-pill" title="Salir de pantalla completa">
-              <span>✕</span> Salir
+              <span>✕</span> <span class="exit-label">Salir</span>
             </button>
           </div>
         </div>
@@ -159,6 +168,7 @@
           <span id="trackpointsCounter" class="ele-stat-pill">0 puntos</span>
         </div>
         <div id="routeMap" class="map-container"></div>
+        <div id="mapToast" class="map-toast" aria-live="polite"></div>
         <div id="elevationProfileContainer"></div>
       </section>
 

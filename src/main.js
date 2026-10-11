@@ -9,6 +9,7 @@ import {
   fitRouteBounds,
   focusPoi,
   toggleGpsTracking,
+  toggleAutoCenter,
   stopGpsTracking,
   toggleMapFullscreen,
   isMapFullscreenActive,
@@ -289,6 +290,15 @@ btnClipboardPaste.addEventListener('click', async () => {
   }
 });
 
+// Event: Load Sample Route button
+const btnLoadSampleRoute = document.getElementById('btnLoadSampleRoute');
+if (btnLoadSampleRoute) {
+  btnLoadSampleRoute.addEventListener('click', async () => {
+    wikilocUrlInput.value = 'https://es.wikiloc.com/rutas-senderismo/picos-de-europa-ruta-del-cares-ejemplo';
+    await displayRoute(SAMPLE_ROUTE);
+  });
+}
+
 // Event: Download GPX button
 btnDownloadGpx.addEventListener('click', async () => {
   if (!currentTrailData || !currentCoordinates) {
@@ -353,6 +363,13 @@ if (btnHeaderOrientation) {
   btnHeaderOrientation.addEventListener('click', toggleScreenOrientation);
 }
 
+const btnFullscreenAutoCenter = document.getElementById('btnFullscreenAutoCenter');
+if (btnFullscreenAutoCenter) {
+  btnFullscreenAutoCenter.addEventListener('click', () => {
+    toggleAutoCenter();
+  });
+}
+
 const btnFullscreenOrientation = document.getElementById('btnFullscreenOrientation');
 if (btnFullscreenOrientation) {
   btnFullscreenOrientation.addEventListener('click', toggleScreenOrientation);
@@ -379,6 +396,10 @@ async function initSharedIntentListener() {
     if (sharedParam) {
       console.log('Ruta recibida por parámetro URL:', sharedParam);
       await processRouteUrl(sharedParam);
+    } else if (params.get('sample') === 'true' || params.get('demo') === 'true') {
+      console.log('Cargando ruta de muestra...');
+      wikilocUrlInput.value = 'https://es.wikiloc.com/rutas-senderismo/picos-de-europa-ruta-del-cares-ejemplo';
+      await displayRoute(SAMPLE_ROUTE);
     }
   } catch (e) {}
 

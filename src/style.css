@@ -319,6 +319,31 @@ body {
   transform: translateY(1px);
 }
 
+.sample-link-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-top: 10px;
+}
+
+.btn-sample-link {
+  background: none;
+  border: none;
+  color: var(--forest-primary);
+  font-family: var(--font-body);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  transition: all 0.2s ease;
+  opacity: 0.85;
+}
+
+.btn-sample-link:hover {
+  opacity: 1;
+  background: rgba(39, 77, 46, 0.08);
+}
+
 
 
 /* Loading & Status Bar */
@@ -637,9 +662,24 @@ body {
   color: #ffffff !important;
 }
 
-.leaflet-custom-tools a.btn-gps-location.following {
-  background-color: #274D2E !important;
+/* Auto-Center Toggle Button */
+.leaflet-custom-tools a.btn-auto-center {
+  color: var(--forest-primary) !important;
+}
+
+.leaflet-custom-tools a.btn-auto-center.active {
+  background-color: #16a34a !important;
   color: #ffffff !important;
+}
+
+.leaflet-custom-tools a.btn-auto-center.active svg {
+  animation: autoCenterPulse 2s infinite ease-in-out;
+}
+
+@keyframes autoCenterPulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.18); }
+  100% { transform: scale(1); }
 }
 
 .leaflet-custom-tools a.btn-fullscreen-toggle.active {
@@ -703,7 +743,7 @@ body {
   top: 14px;
   left: 14px;
   right: 14px;
-  z-index: 1000;
+  z-index: 1005;
   background: rgba(255, 255, 255, 0.94);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
@@ -717,14 +757,34 @@ body {
   pointer-events: auto;
 }
 
+/* In Fullscreen mode: header ends before the top-right layer control button to prevent overlap */
 .map-card.fullscreen .map-fullscreen-header {
   display: flex !important;
+  top: max(12px, env(safe-area-inset-top, 12px)) !important;
+  left: max(12px, env(safe-area-inset-left, 12px)) !important;
+  right: max(68px, calc(env(safe-area-inset-right, 0px) + 68px)) !important;
+  z-index: 1005 !important;
+}
+
+/* In Fullscreen mode: Leaflet layer switcher placed cleanly in the top-right corner */
+.map-card.fullscreen .leaflet-top.leaflet-right {
+  top: max(12px, env(safe-area-inset-top, 12px)) !important;
+  right: max(12px, env(safe-area-inset-right, 12px)) !important;
+  z-index: 1004 !important;
+}
+
+.map-card.fullscreen .leaflet-top.leaflet-right .leaflet-control-layers {
+  margin: 0 !important;
+  border-radius: 12px !important;
+  border: 1px solid rgba(255, 255, 255, 0.8) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
 }
 
 .fullscreen-title-box {
   display: flex;
   flex-direction: column;
   min-width: 0;
+  flex: 1 1 auto;
 }
 
 .fullscreen-route-title {
@@ -741,6 +801,9 @@ body {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .fullscreen-actions {
@@ -763,10 +826,21 @@ body {
   align-items: center;
   gap: 5px;
   transition: all 0.2s ease;
+  white-space: nowrap;
 }
 
 .fullscreen-btn-pill:hover {
   background: var(--sage-light);
+}
+
+.fullscreen-btn-pill.auto-center-pill.active {
+  background: #16a34a !important;
+  color: #ffffff !important;
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.3) !important;
+}
+
+.fullscreen-btn-pill.auto-center-pill.active:hover {
+  background: #15803d !important;
 }
 
 .fullscreen-btn-pill.exit-pill {
@@ -776,6 +850,34 @@ body {
 
 .fullscreen-btn-pill.exit-pill:hover {
   background: #dc2626;
+}
+
+/* Floating Toast Notification on Map */
+.map-toast {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%) translateY(20px);
+  background: rgba(22, 45, 27, 0.94);
+  color: #ffffff;
+  padding: 8px 18px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: 600;
+  pointer-events: none;
+  opacity: 0;
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  z-index: 1006;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  white-space: nowrap;
+}
+
+.map-toast.visible {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
 .leaflet-custom-tools a.btn-gps-location.active svg {
@@ -1183,5 +1285,37 @@ body {
 
   .map-container {
     height: 300px;
+  }
+}
+
+@media (max-width: 540px) {
+  .map-card.fullscreen .map-fullscreen-header {
+    top: max(8px, env(safe-area-inset-top, 8px)) !important;
+    left: max(8px, env(safe-area-inset-left, 8px)) !important;
+    right: max(64px, calc(env(safe-area-inset-right, 0px) + 64px)) !important;
+    padding: 6px 10px !important;
+    gap: 6px !important;
+  }
+
+  .fullscreen-actions {
+    gap: 5px !important;
+  }
+
+  .fullscreen-actions .fullscreen-btn-pill {
+    padding: 5px 8px !important;
+    font-size: 11px !important;
+  }
+
+  .fullscreen-actions .fullscreen-btn-pill .pill-label {
+    display: none !important;
+  }
+
+  .fullscreen-actions .fullscreen-btn-pill.exit-pill {
+    padding: 5px 9px !important;
+  }
+
+  .map-card.fullscreen .leaflet-top.leaflet-right {
+    top: max(8px, env(safe-area-inset-top, 8px)) !important;
+    right: max(8px, env(safe-area-inset-right, 8px)) !important;
   }
 }

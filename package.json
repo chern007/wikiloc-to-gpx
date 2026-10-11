@@ -1,6 +1,6 @@
 {
   "name": "android_app_get_wikiloc",
-  "version": "1.0.12",
+  "version": "1.0.13",
   "private": true,
   "type": "module",
   "scripts": {

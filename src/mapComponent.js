@@ -24,10 +24,13 @@ let userGpsMarker = null;
 let userAccuracyCircle = null;
 let gpsWatchId = null;
 let isTrackingGps = false;
-let followUser = true;
+let followUser = false;
 let lastKnownLocation = null;
 let gpsStatusCallback = null;
 let gpsButtonEl = null;
+let autoCenterButtonEl = null;
+let dragPauseTimeout = null;
+let isTemporarilyPausedByDrag = false;
 
 // Compass heading state
 let currentHeading = null;
@@ -151,12 +154,12 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
         `;
         mapOrientationButtonEl = orientBtn;
 
-        // 4. GPS Location button
+        // 4. GPS Location button (Centrar puntualmente)
         const gpsBtn = L.DomUtil.create('a', 'leaflet-tool-btn btn-gps-location', bar);
         gpsBtn.href = '#';
-        gpsBtn.title = 'Mi ubicación GPS / Seguir ruta';
+        gpsBtn.title = 'Centrar en mi ubicación GPS';
         gpsBtn.setAttribute('role', 'button');
-        gpsBtn.setAttribute('aria-label', 'Mi ubicación GPS');
+        gpsBtn.setAttribute('aria-label', 'Centrar en mi ubicación GPS');
         gpsBtn.innerHTML = `
           <svg class="gps-svg-icon" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="12" cy="12" r="3"/>
@@ -167,6 +170,19 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
           </svg>
         `;
         gpsButtonEl = gpsBtn;
+
+        // 5. Auto-Center Toggle button (Seguimiento continuo al desplazarse)
+        const autoCenterBtn = L.DomUtil.create('a', 'leaflet-tool-btn btn-auto-center', bar);
+        autoCenterBtn.href = '#';
+        autoCenterBtn.title = 'Centrado automático: Desactivado. Pulsa para que el mapa te siga.';
+        autoCenterBtn.setAttribute('role', 'button');
+        autoCenterBtn.setAttribute('aria-label', 'Centrado automático');
+        autoCenterBtn.innerHTML = `
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 19 21 12 17 5 21 12 2"/>
+          </svg>
+        `;
+        autoCenterButtonEl = autoCenterBtn;
 
         L.DomEvent.disableClickPropagation(bar);
         L.DomEvent.disableScrollPropagation(bar);
@@ -192,7 +208,13 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
         L.DomEvent.on(gpsBtn, 'click', function(e) {
           L.DomEvent.preventDefault(e);
           L.DomEvent.stopPropagation(e);
-          toggleGpsTracking();
+          centerOnUserLocation();
+        });
+
+        L.DomEvent.on(autoCenterBtn, 'click', function(e) {
+          L.DomEvent.preventDefault(e);
+          L.DomEvent.stopPropagation(e);
+          toggleAutoCenter();
         });
 
         return bar;
@@ -400,25 +422,137 @@ export function focusPoi(idx) {
 }
 
 /**
- * Toggles GPS location tracking on the map
+ * Displays a lightweight toast notification on the map
+ */
+export function showMapToast(msg) {
+  const toast = document.getElementById('mapToast');
+  if (!toast) return;
+  toast.textContent = msg;
+  toast.classList.add('visible');
+  if (toast._toastTimer) clearTimeout(toast._toastTimer);
+  toast._toastTimer = setTimeout(() => {
+    toast.classList.remove('visible');
+  }, 2200);
+}
+
+/**
+ * Returns whether auto-centering follow mode is active
+ */
+export function isAutoCenterActive() {
+  return followUser;
+}
+
+/**
+ * Updates UI buttons according to auto-centering state
+ */
+export function updateAutoCenterUI(active) {
+  // 1. Leaflet custom tools control button
+  if (autoCenterButtonEl) {
+    if (active) {
+      autoCenterButtonEl.classList.add('active');
+      autoCenterButtonEl.title = 'Centrado automático: Activado (el mapa te sigue). Pulsa para desactivar.';
+      autoCenterButtonEl.setAttribute('aria-label', autoCenterButtonEl.title);
+      autoCenterButtonEl.innerHTML = `
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 19 21 12 17 5 21 12 2"/>
+        </svg>
+      `;
+    } else {
+      autoCenterButtonEl.classList.remove('active');
+      autoCenterButtonEl.title = 'Centrado automático: Desactivado. Pulsa para que el mapa te siga.';
+      autoCenterButtonEl.setAttribute('aria-label', autoCenterButtonEl.title);
+      autoCenterButtonEl.innerHTML = `
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round">
+          <polygon points="12 2 19 21 12 17 5 21 12 2"/>
+        </svg>
+      `;
+    }
+  }
+
+  // 2. Fullscreen header button
+  const fsAutoBtn = document.getElementById('btnFullscreenAutoCenter');
+  const fsAutoIcon = document.getElementById('fsAutoCenterIcon');
+  const fsAutoText = document.getElementById('fsAutoCenterText');
+  if (fsAutoBtn) {
+    if (active) {
+      fsAutoBtn.classList.add('active');
+      fsAutoBtn.title = 'Centrado automático: Activado. Pulsa para desactivar.';
+      if (fsAutoIcon) fsAutoIcon.textContent = '🎯';
+      if (fsAutoText) fsAutoText.textContent = 'Siguiendo';
+    } else {
+      fsAutoBtn.classList.remove('active');
+      fsAutoBtn.title = 'Centrado automático: Desactivado. Pulsa para activar seguimiento.';
+      if (fsAutoIcon) fsAutoIcon.textContent = '🧭';
+      if (fsAutoText) fsAutoText.textContent = 'Seguir';
+    }
+  }
+}
+
+/**
+ * Toggles continuous auto-centering on user position
+ */
+export async function toggleAutoCenter(forceState) {
+  const targetState = forceState !== undefined ? forceState : !followUser;
+  followUser = targetState;
+  isTemporarilyPausedByDrag = false;
+  if (dragPauseTimeout) clearTimeout(dragPauseTimeout);
+
+  if (followUser) {
+    if (!isTrackingGps) {
+      await startGpsTracking();
+    } else if (lastKnownLocation && currentMap) {
+      const zoom = Math.max(currentMap.getZoom(), 16);
+      currentMap.setView([lastKnownLocation.lat, lastKnownLocation.lon], zoom, { animate: true });
+    }
+    updateAutoCenterUI(true);
+    showMapToast('🎯 Centrado automático activado');
+  } else {
+    updateAutoCenterUI(false);
+    showMapToast('Centrado automático desactivado');
+  }
+
+  notifyGpsStatus({
+    active: isTrackingGps,
+    following: followUser,
+    ...(lastKnownLocation || {})
+  });
+
+  return followUser;
+}
+
+/**
+ * Instantly centers map on user's current GPS position
+ */
+export async function centerOnUserLocation() {
+  isTemporarilyPausedByDrag = false;
+  if (dragPauseTimeout) clearTimeout(dragPauseTimeout);
+
+  if (!isTrackingGps) {
+    await startGpsTracking();
+    showMapToast('📍 Buscando señal GPS...');
+    return;
+  }
+
+  if (lastKnownLocation && currentMap) {
+    const zoom = Math.max(currentMap.getZoom(), 16);
+    currentMap.setView([lastKnownLocation.lat, lastKnownLocation.lon], zoom, { animate: true });
+    showMapToast('📍 Vista centrada en tu ubicación');
+  } else {
+    showMapToast('Buscando señal GPS...');
+  }
+}
+
+/**
+ * Toggles GPS location tracking on the map (or re-centers)
  */
 export async function toggleGpsTracking(onStatusChange) {
   if (onStatusChange) gpsStatusCallback = onStatusChange;
 
-  if (isTrackingGps) {
-    if (!followUser && lastKnownLocation) {
-      // Re-center on user and resume follow mode
-      followUser = true;
-      currentMap.setView([lastKnownLocation.lat, lastKnownLocation.lon], 16, { animate: true });
-      notifyGpsStatus({ active: true, following: true, ...lastKnownLocation });
-      return;
-    }
-    // Turn off
-    stopGpsTracking();
-    return;
+  if (!isTrackingGps) {
+    await startGpsTracking(onStatusChange);
+  } else {
+    await centerOnUserLocation();
   }
-
-  await startGpsTracking(onStatusChange);
 }
 
 /**
@@ -486,9 +620,8 @@ export async function startGpsTracking(onStatusChange) {
     }
   }
 
-  notifyGpsStatus({ active: true, following: true, loading: true });
+  notifyGpsStatus({ active: true, following: followUser, loading: true });
   isTrackingGps = true;
-  followUser = true;
 
   if (currentMap) {
     currentMap.on('dragstart', handleUserMapDrag);
@@ -512,7 +645,7 @@ export async function startGpsTracking(onStatusChange) {
 
       updateUserLocationMarker(lat, lon, accuracy);
 
-      if (isFirstFix || followUser) {
+      if (isFirstFix || (followUser && !isTemporarilyPausedByDrag)) {
         if (currentMap) {
           const currentZoom = currentMap.getZoom();
           const targetZoom = Math.max(currentZoom, 16);
@@ -588,6 +721,8 @@ export function stopGpsTracking() {
 
   isTrackingGps = false;
   followUser = false;
+  isTemporarilyPausedByDrag = false;
+  if (dragPauseTimeout) clearTimeout(dragPauseTimeout);
 
   if (currentMap) {
     currentMap.off('dragstart', handleUserMapDrag);
@@ -602,13 +737,20 @@ export function stopGpsTracking() {
     userAccuracyCircle = null;
   }
 
+  updateAutoCenterUI(false);
   notifyGpsStatus({ active: false, following: false });
 }
 
 function handleUserMapDrag() {
   if (isTrackingGps && followUser) {
-    followUser = false;
-    notifyGpsStatus({ active: true, following: false, ...lastKnownLocation });
+    isTemporarilyPausedByDrag = true;
+    if (dragPauseTimeout) clearTimeout(dragPauseTimeout);
+    dragPauseTimeout = setTimeout(() => {
+      isTemporarilyPausedByDrag = false;
+      if (followUser && lastKnownLocation && currentMap) {
+        currentMap.panTo([lastKnownLocation.lat, lastKnownLocation.lon], { animate: true });
+      }
+    }, 3800);
   }
 }
 
@@ -616,19 +758,14 @@ function notifyGpsStatus(status) {
   if (gpsButtonEl) {
     if (status.active) {
       gpsButtonEl.classList.add('active');
-      if (status.following) {
-        gpsButtonEl.classList.add('following');
-        gpsButtonEl.title = 'Siguiendo ruta en tiempo real (Toca para pausar)';
-      } else {
-        gpsButtonEl.classList.remove('following');
-        gpsButtonEl.title = 'Centrar en mi ubicación';
-      }
+      gpsButtonEl.title = 'Centrar en mi ubicación actual (GPS activo)';
     } else {
       gpsButtonEl.classList.remove('active');
-      gpsButtonEl.classList.remove('following');
-      gpsButtonEl.title = 'Mi ubicación GPS / Seguir ruta';
+      gpsButtonEl.title = 'Activar GPS y centrar mi ubicación';
     }
   }
+
+  updateAutoCenterUI(followUser);
 
   if (typeof gpsStatusCallback === 'function') {
     gpsStatusCallback(status);
