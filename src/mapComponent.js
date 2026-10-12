@@ -208,7 +208,7 @@ export function renderRouteMap(containerId, coordinates, waypoints = []) {
         L.DomEvent.on(gpsBtn, 'click', function(e) {
           L.DomEvent.preventDefault(e);
           L.DomEvent.stopPropagation(e);
-          centerOnUserLocation();
+          toggleGpsTracking();
         });
 
         L.DomEvent.on(autoCenterBtn, 'click', function(e) {
@@ -543,15 +543,16 @@ export async function centerOnUserLocation() {
 }
 
 /**
- * Toggles GPS location tracking on the map (or re-centers)
+ * Toggles GPS location tracking on the map (activates or deactivates)
  */
 export async function toggleGpsTracking(onStatusChange) {
   if (onStatusChange) gpsStatusCallback = onStatusChange;
 
-  if (!isTrackingGps) {
-    await startGpsTracking(onStatusChange);
+  if (isTrackingGps) {
+    stopGpsTracking();
+    showMapToast('GPS desactivado');
   } else {
-    await centerOnUserLocation();
+    await startGpsTracking(onStatusChange);
   }
 }
 
@@ -737,6 +738,8 @@ export function stopGpsTracking() {
     userAccuracyCircle = null;
   }
 
+  lastKnownLocation = null;
+
   updateAutoCenterUI(false);
   notifyGpsStatus({ active: false, following: false });
 }
@@ -758,10 +761,12 @@ function notifyGpsStatus(status) {
   if (gpsButtonEl) {
     if (status.active) {
       gpsButtonEl.classList.add('active');
-      gpsButtonEl.title = 'Centrar en mi ubicación actual (GPS activo)';
+      gpsButtonEl.title = 'GPS activo: Pulsa para desactivar';
+      gpsButtonEl.setAttribute('aria-label', gpsButtonEl.title);
     } else {
       gpsButtonEl.classList.remove('active');
       gpsButtonEl.title = 'Activar GPS y centrar mi ubicación';
+      gpsButtonEl.setAttribute('aria-label', gpsButtonEl.title);
     }
   }
 

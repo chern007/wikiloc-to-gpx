@@ -757,18 +757,18 @@ body {
   pointer-events: auto;
 }
 
-/* In Fullscreen mode: header ends before the top-right layer control button to prevent overlap */
+/* In Fullscreen mode: header spans cleanly across top with safe area support */
 .map-card.fullscreen .map-fullscreen-header {
   display: flex !important;
   top: max(12px, env(safe-area-inset-top, 12px)) !important;
   left: max(12px, env(safe-area-inset-left, 12px)) !important;
-  right: max(68px, calc(env(safe-area-inset-right, 0px) + 68px)) !important;
+  right: max(12px, env(safe-area-inset-right, 12px)) !important;
   z-index: 1005 !important;
 }
 
-/* In Fullscreen mode: Leaflet layer switcher placed cleanly in the top-right corner */
+/* In Fullscreen mode: Leaflet layer switcher placed cleanly BELOW the top header */
 .map-card.fullscreen .leaflet-top.leaflet-right {
-  top: max(12px, env(safe-area-inset-top, 12px)) !important;
+  top: calc(max(12px, env(safe-area-inset-top, 12px)) + 56px) !important;
   right: max(12px, env(safe-area-inset-right, 12px)) !important;
   z-index: 1004 !important;
 }
@@ -776,8 +776,30 @@ body {
 .map-card.fullscreen .leaflet-top.leaflet-right .leaflet-control-layers {
   margin: 0 !important;
   border-radius: 12px !important;
+  background: rgba(255, 255, 255, 0.94) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
   border: 1px solid rgba(255, 255, 255, 0.8) !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2) !important;
+}
+
+.map-card.fullscreen .leaflet-control-layers-expanded {
+  padding: 8px 12px !important;
+  border-radius: 12px !important;
+  font-family: var(--font-body) !important;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  color: var(--forest-dark) !important;
+  background: rgba(255, 255, 255, 0.96) !important;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.22) !important;
+}
+
+.map-card.fullscreen .leaflet-control-layers-expanded label {
+  margin: 4px 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 6px !important;
+  cursor: pointer !important;
 }
 
 .fullscreen-title-box {
@@ -1292,7 +1314,7 @@ body {
   .map-card.fullscreen .map-fullscreen-header {
     top: max(8px, env(safe-area-inset-top, 8px)) !important;
     left: max(8px, env(safe-area-inset-left, 8px)) !important;
-    right: max(64px, calc(env(safe-area-inset-right, 0px) + 64px)) !important;
+    right: max(8px, env(safe-area-inset-right, 8px)) !important;
     padding: 6px 10px !important;
     gap: 6px !important;
   }
@@ -1314,8 +1336,9 @@ body {
     padding: 5px 9px !important;
   }
 
+  /* Layer switcher cleanly positioned below top header, avoiding any overlap with the exit button */
   .map-card.fullscreen .leaflet-top.leaflet-right {
-    top: max(8px, env(safe-area-inset-top, 8px)) !important;
+    top: calc(max(8px, env(safe-area-inset-top, 8px)) + 52px) !important;
     right: max(8px, env(safe-area-inset-right, 8px)) !important;
   }
 }
